@@ -8,7 +8,7 @@ window.TutorialModalController = (() => {
   const TEXT_IN_DURATION = 0.5; // 500ms
   const TEXT_OUT_DURATION = 0.5; // 500ms
   const DEFAULT_AUTO_DISMISS_MS = 5000; // 5 seconds
-  const CHARS_PER_SECOND = 60;
+  const CHARS_PER_SECOND = 120;
 
   /**
    * Show a tutorial message

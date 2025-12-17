@@ -23,7 +23,7 @@ window.TutorialMessages = (() => {
     "part2-dojo-2": {
       id: "part2-dojo-2",
       title: "PART 2 — Dojo / Combat Tutorial",
-      body: "Only one of you proceeds.\nFocus helps.\nFailure is prepared.",
+      body: "Kiss yourself like Jesus would.",
       autoDismissMs: null,
     },
     "part2-ui-1": {
@@ -35,25 +35,25 @@ window.TutorialMessages = (() => {
     "part2-ui-2": {
       id: "part2-ui-2",
       title: "UI Basics",
-      body: "**Hearts** (inside the square panel at top left, below the percentage):\nHearts are lives.\nLose them and become decoration.",
+      body: "**Hearts** (top left box):\nHearts are lives.\nLose them and become decoration.",
       autoDismissMs: null,
     },
     "part2-ui-3": {
       id: "part2-ui-3",
       title: "UI Basics",
-      body: "**Ultimate Bar** (at the top inside the square panel at top left, ten segments):\nPerfect beatmatches fill it.\nAlmost does not.",
+      body: "**Ultimate Bar** (inside the box at top, ten segments):\nPerfect beatmatches fill it.\nAlmost does not.",
       autoDismissMs: null,
     },
     "part2-beatmatch-1": {
       id: "part2-beatmatch-1",
       title: "Beatmatch Task",
-      body: "Land ten perfect beatmatches.\nNot fewer.\nWatch the **Ultimate Bar** (at the top inside the square panel at top left).\nIt fills slowly. Like guilt.\n\n[[action:Dance]]: [[controller:Circle]] / [[keyboard:D]]",
+      body: "Land ten perfect beatmatches.\nWatch the **Ultimate Bar**.\nIt fills slowly. Like guilt.\n\n[[action:Dance]]: [[controller:Circle]] / [[keyboard:D]]",
       autoDismissMs: null,
     },
     "part2-beatmatch-2": {
       id: "part2-beatmatch-2",
       title: "Beatmatch Task",
-      body: "Land ten perfect beatmatches.\nNot fewer.\nWatch the **Ultimate Bar** (at the top inside the square panel at top left).\nIt fills slowly. Like guilt.\n\n[[action:Dance]]: [[controller:Circle]] / [[keyboard:D]]",
+      body: "Land ten\n\n[[action:Dance]]: [[controller:Circle]] / [[keyboard:D]]",
       autoDismissMs: null,
     },
     "part2-ultimate-base": {
