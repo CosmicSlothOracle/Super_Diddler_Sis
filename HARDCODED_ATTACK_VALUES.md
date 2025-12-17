@@ -110,10 +110,10 @@ stun: 1.5, // 1.5 seconds stun
 
 ## Zusammenfassung
 
-**Kritische Stellen (sollten dringend migriert werden):**
-1. Cyboard L2 Smash Attack (Zeilen 1022-1034)
-2. Cyboard Sword Slam Finisher (Zeilen 6294-6320)
-3. Cyboard Sword Grab/DoT (Zeilen 6156, 6195)
+**Status-Updates:**
+1. ✅ Cyboard L2 Smash Attack - VOLLSTÄNDIG MIGRIERT zu `AttackSystem.handleCyboardL2()` (attack-system.js, Zeile 4452)
+2. ⚠️ Cyboard Sword Slam Finisher - Status unklar, prüfen ob noch existiert
+3. ⚠️ Cyboard Sword Grab/DoT - Status unklar, prüfen ob noch existiert (Grab-System existiert noch für HP)
 
 **Weniger kritisch (aber trotzdem dokumentiert):**
 4. Cyboard L1 Bomb Splash (Zeile 6664 - wird nicht verwendet)

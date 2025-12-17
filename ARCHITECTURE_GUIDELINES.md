@@ -9,21 +9,23 @@
 
 ## Core Principles
 
-### 1. **NO MORE HARDCODED CHARACTER CHECKS**
-❌ **FORBIDDEN**:
+### 1. **Minimize Hardcoded Character Checks**
+⚠️ **AVOID WHEN POSSIBLE**:
 ```javascript
 if (p.charName === "cyboard") {
   // Character-specific logic
 }
 ```
 
-✅ **REQUIRED**:
+✅ **PREFERRED**:
 ```javascript
 const descriptor = AttackCatalog.getDescriptor(p, attackType);
 if (descriptor?.specialProperty) {
   // Data-driven logic
 }
 ```
+
+**Note:** Character checks in `attack-system.js` for handler routing (e.g., `if (p.charName === "cyboard") { handleCyboardR1(...) }`) are acceptable and necessary. The goal is to avoid character-specific logic in damage/knockback/FX calculations, not in handler delegation.
 
 ### 2. **Attack Configuration is Data-Driven**
 - All attack properties (damage, knockback, FX, priority) come from `attack-catalog.js`
@@ -66,25 +68,39 @@ spawnEffect(state, p, fxId, descriptor?.fx?.hit?.options);
 
 These character-specific checks are **intentionally preserved**:
 
-### 1. Projectile State Machines
+### 1. Handler Routing in AttackSystem
 ```javascript
-// Cyboard sword recall logic (lines 680-707)
+// attack-system.js: Handler delegation (lines 1275-1296)
+if (p.charName === "cyboard") {
+  handleCyboardR1(p, inputs, state, grounded, dt);
+  return;
+}
+if (p.charName === "fritz") {
+  handleFritzR1(p, inputs, state, grounded, dt);
+  return;
+}
+```
+**Reason:** Necessary for routing to character-specific handlers. Each handler uses descriptors internally.
+
+### 2. Projectile State Machines
+```javascript
+// Cyboard sword recall logic (physics.js)
 if (p.charName === "cyboard" && p.swordIsOut) {
   // Complex projectile interaction - must stay
 }
 ```
 
-### 2. Unique Input Combinations
+### 3. Unique Input Combinations
 ```javascript
-// Fritz L3+R1 combo (lines 801-808)
+// Fritz L3+R1 combo (physics.js)
 if (inputs.l3UpR1Down && p.charName === "fritz") {
   // Unique input mapping - must stay
 }
 ```
 
-### 3. Character-Specific Special Attacks
+### 4. Character-Specific Special Attacks
 ```javascript
-// L1/L2 per character (lines 834-870)
+// L1/L2 per character (physics.js)
 if (inputs.l1Down && p.charName === "fritz") {
   // Each char has unique specials - must stay
 }
@@ -125,9 +141,9 @@ console.log(desc); // Shows tier, priority, FX, metadata
 
 ## Migration History
 
-- **Before**: 20+ hardcoded character checks in attack logic
-- **After**: Data-driven system with 3 intentional exceptions
-- **Result**: Maintainable, extensible, consistent attack system
+- **Before**: 20+ hardcoded character checks in attack logic (damage/knockback/FX)
+- **After**: Data-driven system for damage/knockback/FX with intentional exceptions for handler routing and special mechanics
+- **Result**: Maintainable, extensible, consistent attack system where combat data is centralized in descriptors
 
 ---
 

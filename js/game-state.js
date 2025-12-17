@@ -229,28 +229,25 @@ window.GameState = (() => {
           complete: false,
         },
       },
-      // NEW: Instruction panel state
-      instructionPanel: {
-        visible: true,
-        currentText: "",
-        highlightElements: [], // ["hud_beat_bar", "button_r1", etc.]
-        progressText: "", // e.g., "2/4 attacks used"
+      // NEW: Unified tutorial modal state (replaces part1.modal, part2.modal, part3.modal, instructionPanel)
+      modal: {
+        visible: false,
+        messageId: null,
+        currentMessage: null,
+        animationState: "hidden", // hidden | appearing | visible | dismissing
+        animationProgress: 0, // 0-1
+        charIndex: 0,
+        charsPerSecond: 60,
+        autoDismissTimer: 0,
+        completed: false,
+        textLines: [],
+        currentLine: 0,
+        holdTimer: 0,
+        holdDuration: 1.1,
       },
       // NEW: Tutorial Part 1 state (Beatmatch Basics)
       part1: {
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 60, // 15% faster
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 2.0, // Auto-hide after 2 seconds when typing is complete
-          completed: false,
-          autoClose: true, // Part 1 modal closes automatically
-        },
+        // Part 1 specific state (no modal here, uses unified modal)
       },
       // NEW: Tutorial Part 2 state (PvP Stage 2 - Combat Tutorial)
       part2: {
@@ -259,18 +256,16 @@ window.GameState = (() => {
         currentPage: 0, // 0 = Dojo intro, 1 = UI explanation, 2+ = later steps
         uiHighlightActive: false, // Highlight UI elements during explanation
         introComplete: false, // Track if intro modals are done
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 60, // 15% faster
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 1.5,
-          completed: false,
-        },
+        // NEW: Step tracking for Part 2
+        currentStep: "intro", // intro, beatmatch, ultimate_explain, ultimate_task, beat_charge_explain, beat_charge_task, complete
+        perfectBeatsCollected: 0,
+        requiredPerfectBeats: 10,
+        npcSpawned: false,
+        ultimateUsed: false,
+        ultimateHitEnemy: false,
+        beatChargeHitEnemy: false,
+        showBeatChargeModalTimer: -1,
+        ultimateReady: false,
       },
       // NEW: Tutorial Part 3 state (Advanced Rhythm on pvp_stage_3)
       part3: {
@@ -284,18 +279,9 @@ window.GameState = (() => {
         quietZoneHintShown: false,
         ultimeterFull: false,
         ultimateUsed: false,
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 52,
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 1.5,
-          completed: false,
-        },
+        currentStep: "intro", // intro, stepA, stepB, stepC, stepD, stepE, stepF
+        beatChargesCollected: false,
+        chargedAttackUsed: false,
       },
       transitionToPart3: false, // Flag to transition to part 3 (pvp_stage_3)
     },

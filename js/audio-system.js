@@ -276,13 +276,19 @@ window.AudioSystem = (() => {
 
   function init() {
     // Wait for user interaction to unlock audio
-    const unlockAudio = () => {
+    const unlockAudio = async () => {
       if (!audioUnlocked) {
         audioUnlocked = true;
         // Initialize AudioContext on first user interaction
         if (!audioContext) {
-          audioContext = new (window.AudioContext ||
-            window.webkitAudioContext)();
+          // Use AudioDeviceManager for optimized AudioContext if available
+          if (window.AudioDeviceManager) {
+            audioContext = window.AudioDeviceManager.createOptimizedAudioContext();
+          } else {
+            // Fallback to standard AudioContext
+            audioContext = new (window.AudioContext ||
+              window.webkitAudioContext)();
+          }
           console.log(
             "🎵 AudioContext initialized:",
             audioContext.sampleRate,
@@ -300,6 +306,20 @@ window.AudioSystem = (() => {
           } else {
             // Already running, warm up immediately
             primeAudioGraph();
+          }
+
+          // Setup device change listener if AudioDeviceManager is available
+          if (window.AudioDeviceManager) {
+            window.AudioDeviceManager.onDeviceChange((type, deviceId) => {
+              console.log(`🎵 Audio device changed: ${type} → ${deviceId}`);
+
+              // If output device changed, update current track's sink
+              if (type === "output" && currentTrack && currentTrack.setSinkId) {
+                currentTrack.setSinkId(deviceId).catch((err) => {
+                  console.warn("🎵 Failed to switch audio output device:", err);
+                });
+              }
+            });
           }
         }
         console.log("🎵 Audio context unlocked");
@@ -367,6 +387,17 @@ window.AudioSystem = (() => {
     // Web Audio API. Setting it to 0 silences the track. Use full volume (1.0) and let the GainNode
     // handle all attenuation instead.
     audio.volume = useWebAudio ? 1 : trackConfig.volume;
+
+    // Set output device if AudioDeviceManager is available and device is selected
+    if (window.AudioDeviceManager && audio.setSinkId) {
+      const currentOutput = window.AudioDeviceManager.getCurrentOutputDevice();
+      if (currentOutput && currentOutput.deviceId !== "default") {
+        audio.setSinkId(currentOutput.deviceId).catch((err) => {
+          console.warn("🎵 Failed to set audio sink:", err);
+        });
+      }
+    }
+
     return audio;
   }
 

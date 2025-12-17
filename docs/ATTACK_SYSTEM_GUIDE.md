@@ -115,4 +115,6 @@ Renderer: Ulti animations are protected from generic state switches; `setAnim` g
 - Remaining legacy items:
   - Legacy ultimate handlers in `physics.js` are disabled; do not re-enable. Any leftover helpers are safe to delete when no references remain.
   - Isolated hardcoded constants are being removed case-by-case as descriptors are expanded.
+  - Simple attack types (`r1_circle_attack`, `r1_up_attack`, `r2_hit_followup`) still have minimal logic in `physics.js` (animation end checks only).
 - Testing covers Fritz/Cyboard/HP R1, L1, L2 (ground/air, tap/hold, combos). R2 and L2 are tuned via descriptors; further tuning should occur in `attack-catalog.js`/`character-catalog.js`.
+- **Cyboard L2 Smash Attack**: Fully migrated to `AttackSystem.handleCyboardL2()` (attack-system.js, line 4452). All phase logic (charge, jump, hover, fall, impact) is now in AttackSystem.

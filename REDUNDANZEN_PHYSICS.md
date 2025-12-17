@@ -1,25 +1,15 @@
 # Redundante Code-Stellen in physics.js
 
-## 1. ❌ Alte `applyDamage` Funktion (Zeilen 6036-6106)
+## 1. ⚠️ Legacy `applyDamage` Funktion (Zeilen 7423-7493)
 
-**Problem:** Wird nicht mehr verwendet, alle Schäden sollten über `applyDamageWithDescriptor` gehen
+**Status:** Funktion existiert noch und wird verwendet (z.B. Zeile 7488 prüft `isGrabbed`)
 
-```6036:6106:js/physics.js
-function applyDamage(
-  target,
-  sourcePos,
-  baseDamage,
-  maxStun,
-  baseKnockback,
-  state,
-  falloff = 1.0,
-  knockbackExponent = 0.8
-) {
-  // ... komplett veraltete Implementierung
-}
-```
+**Aktueller Zustand:**
+- Die Funktion `applyDamage` wird noch in einigen Legacy-Pfaden verwendet
+- Neue Attack-Logik sollte `AttackSystem.applyDamageWithDescriptor()` verwenden
+- Die Funktion ist nicht veraltet, aber sollte langfristig durch das Descriptor-System ersetzt werden
 
-**Empfehlung:** Funktion entfernen, da sie nicht mehr aufgerufen wird (keine `applyDamage(` Aufrufe gefunden außer der Definition)
+**Empfehlung:** Schrittweise Migration zu `applyDamageWithDescriptor`, aber Funktion nicht entfernen, solange sie noch verwendet wird
 
 ---
 
@@ -45,20 +35,16 @@ function applyDamage(
 
 ---
 
-## 3. ⚠️ Cyboard L2 Smash Attack komplett in physics.js (Zeilen 708-1040)
+## 3. ✅ Cyboard L2 Smash Attack - MIGRIERT
 
-**Problem:** ~330 Zeilen kompletter Attack-Logik die noch in physics.js ist
+**Status:** ✅ Vollständig migriert zu `AttackSystem.handleCyboardL2()` (Zeile 4452 in attack-system.js)
 
-```708:1040:js/physics.js
-} else if (p.attack.type === "l2" && p.charName === "cyboard") {
-  // Cyboard: L2 Smash Attack (New Multi-Phase Attack)
-  // ... komplett komplexe Multi-Phase Attack Logik
-}
-```
+**Aktueller Zustand:**
+- Die gesamte Attack-Phasen-Logik (charge, jump, hover, fall, impact) wurde zu `attack-system.js` migriert
+- Verwendet `AttackCatalog.getDescriptor(p, "cyboard:l2_smash")` für Damage/Knockback
+- Die Logik in `physics.js` wurde entfernt/ersetzt
 
-**Status:** Die Damage/Knockback-Logik wurde bereits zum Attack Catalog migriert, aber die gesamte Attack-Phasen-Logik (charge, jump, hover, fall, impact) ist noch in physics.js.
-
-**Empfehlung:** Sollte zu `AttackSystem.handleCyboardL2()` migriert werden (analog zu `handleFritzL2`)
+**Hinweis:** Diese Attack-Logik ist vollständig im AttackSystem und sollte nicht mehr in physics.js sein
 
 ---
 
@@ -79,20 +65,20 @@ function applyDamage(
 
 ---
 
-## 5. ❌ Verwaiste `isGrabbed` Referenzen
+## 5. ✅ `isGrabbed` Referenzen - AKTIV VERWENDET
 
-**Problem:** Nach Entfernung des Grab-Systems sind noch `isGrabbed` Checks vorhanden
+**Status:** ✅ Grab-System ist aktiv und wird verwendet
 
-**Gefundene Stellen:**
-- Zeile 167: `if (p.isGrabbed)`
-- Zeile 4962: `isGrabbed: false,` (createPlayer)
-- Zeile 5039: `p.isGrabbed = false;` (respawnPlayer)
-- Zeile 5107: `p.isGrabbed = false;` (respawnPlayer)
-- Zeile 5272: `if (p1.isGrabbed || p2.isGrabbed || ...)` (resolvePlayerCollisions)
-- Zeile 6101: `if (!target.isGrabbed && !wasStunned)` (applyDamage - veraltet!)
-- Zeile 7523: `target.isGrabbed = true;` (irgendwo?)
+**Aktueller Zustand:**
+- Das Grab-System existiert und funktioniert (z.B. HP L1 ranged grab in `attack-system.js`)
+- `isGrabbed` wird aktiv verwendet in:
+  - `attack-system.js` (handleHPGrab, Zeile 581): `target.isGrabbed = true;`
+  - `physics.js` (updatePlayer, Zeile 358): `if (p.isGrabbed)` - Safety-Check für Grabber
+  - `physics.js` (applyDamage, Zeile 7488): `if (!target.isGrabbed && !wasStunned)` - verhindert Animation während Grab
+  - `physics.js` (detectHits, Zeile 9358): Cyboard R2 max charge kann Ziele greifen
+- Alle Referenzen sind aktiv und notwendig
 
-**Empfehlung:** Alle `isGrabbed` Referenzen entfernen, da Grab-System nicht mehr existiert
+**Hinweis:** Das Grab-System wurde NICHT entfernt. Die Dokumentation war falsch.
 
 ---
 
@@ -133,14 +119,14 @@ function handleAttacks(dt, p, inputs, state) {
 
 ## Zusammenfassung
 
-### Sofort entfernen (❌):
-1. `applyDamage` Funktion (6036-6106)
-2. Alle `isGrabbed` Referenzen
-3. `slamming` State (wenn `linkedEffect` nicht mehr benötigt wird)
+### Status-Updates:
+1. ✅ `applyDamage` Funktion existiert noch und wird verwendet (Legacy-Pfad, aber aktiv)
+2. ✅ `isGrabbed` Referenzen sind aktiv und notwendig (Grab-System funktioniert)
+3. ⚠️ `slamming` State (prüfen ob `linkedEffect` noch benötigt wird)
 
 ### Migrieren (⚠️):
-1. `r1_circle_attack`, `r1_up_attack`, `r2_hit_followup` → AttackSystem
-2. Cyboard L2 Smash Attack → `AttackSystem.handleCyboardL2()`
+1. `r1_circle_attack`, `r1_up_attack`, `r2_hit_followup` → AttackSystem (noch in physics.js, sehr einfache Logik)
+2. ✅ Cyboard L2 Smash Attack → `AttackSystem.handleCyboardL2()` (BEREITS MIGRIERT)
 3. Legacy `detectHits` komplett entfernen (wenn möglich)
 
 ### Aufräumen nach Migration:

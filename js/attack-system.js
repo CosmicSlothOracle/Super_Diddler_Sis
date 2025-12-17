@@ -83,12 +83,22 @@ window.AttackSystem = (() => {
     // EDGE CASE FIX: Block all new attack inputs when grab is active (grabber cannot start new attacks)
     if (p.attack && p.attack.type === "grab") {
       updateAttackStates(dt, p, state, inputs);
+      // If a beat-match refresh was queued during the grab, apply it now that the attack state updated.
+      if (p._beatMatchRefreshPending && p.attack && p.attack.type === "none") {
+        updateBeatMatchVisualEffects(p, state);
+        p._beatMatchRefreshPending = false;
+      }
       return; // Grabber must finish grab before starting new attacks
     }
 
     // Update existing attack state first to keep timers in sync
     if (p.attack && p.attack.type !== "none") {
       updateAttackStates(dt, p, state, inputs);
+      // Apply any queued beat-match visual updates once the attack fully finishes.
+      if (p._beatMatchRefreshPending && p.attack && p.attack.type === "none") {
+        updateBeatMatchVisualEffects(p, state);
+        p._beatMatchRefreshPending = false;
+      }
       return;
     }
 
@@ -184,7 +194,10 @@ window.AttackSystem = (() => {
         (attacker.perfectBeatCount || 0) + victimCharges,
         9
       );
-      updateBeatMatchVisualEffects(attacker, state);
+      // Defer applying visual beat-match effects until attack finishes to avoid
+      // triggering dance/animation changes mid-grab which can cause loops.
+      attacker._beatMatchRefreshPending = true;
+      // Clear victim immediately
       resetPerfectBeatMatch(victim);
     }
 
@@ -268,8 +281,24 @@ window.AttackSystem = (() => {
         !p.attack.grabChecked
       ) {
         const grabRect = Renderer.getHurtbox(p);
-        grabRect.w += 60;
-        if (p.facing === -1) grabRect.left -= 60;
+        // Base expansion for grab detection (fallback to 120px - increased for robustness)
+        const _grabExpansionBase =
+          (typeof grabConfig !== "undefined" && grabConfig.range) || 120;
+        const _grabExpansion =
+          p?.perfectBeatCount > 0
+            ? Math.round(_grabExpansionBase * 1.2)
+            : _grabExpansionBase;
+        // Also expand vertically to catch dodges
+        grabRect.h *= 1.3; // 30% taller hitbox
+        grabRect.w += _grabExpansion;
+        // Extend backwards slightly to catch roll dodges
+        const backwardExtension = Math.round(_grabExpansion * 0.4);
+        grabRect.w += backwardExtension;
+        if (p.facing === -1) {
+          grabRect.left -= _grabExpansion + backwardExtension;
+        } else {
+          grabRect.left -= backwardExtension;
+        }
 
         for (const target of state.players) {
           if (target === p || target.eliminated) continue;
@@ -490,7 +519,11 @@ window.AttackSystem = (() => {
     }
 
     if (p.attack.phase === "windup") {
+      console.log(
+        `[Grab DEBUG] HP windup phase, animFinished=${p.animFinished}`
+      );
       if (p.animFinished) {
+        console.log(`[Grab DEBUG] HP transitioning windup -> active`);
         p.attack.phase = "active";
         setAnim(p, "grab_active", false, state, 1);
       }
@@ -500,14 +533,38 @@ window.AttackSystem = (() => {
     if (p.attack.phase === "active") {
       const currentFrame = p.frameIndex;
 
+      // DEBUG: Log active phase progress
+      console.log(
+        `[Grab DEBUG] HP active phase: frame ${currentFrame}, grabChecked=${
+          p.attack.grabChecked
+        }, grabbedTarget=${p.attack.grabbedTarget?.charName || "none"}`
+      );
+
       // Hit Detection (Frames 0-1)
       if (
         currentFrame < (grabConfig.detectFrames || 2) &&
         !p.attack.grabChecked
       ) {
         const grabRect = Renderer.getHurtbox(p);
-        grabRect.w += 60;
-        if (p.facing === -1) grabRect.left -= 60;
+        const _grabExpansionBase =
+          (typeof grabConfig !== "undefined" && grabConfig.range) || 120;
+        const _grabExpansion =
+          p?.perfectBeatCount > 0
+            ? Math.round(_grabExpansionBase * 1.44)
+            : _grabExpansionBase;
+        // Ensure grab box is at least 40% wider than character hurtbox (increased from 30%)
+        const minExpansion = Math.ceil(grabRect.w * 0.4);
+        const finalExpansion = Math.max(_grabExpansion, minExpansion);
+        // Also expand vertically to catch dodges
+        grabRect.h *= 1.4; // 40% taller hitbox
+        // Extend backwards slightly to catch roll dodges
+        const backwardExtension = Math.round(finalExpansion * 0.5);
+        grabRect.w += finalExpansion + backwardExtension;
+        if (p.facing === -1) {
+          grabRect.left -= finalExpansion + backwardExtension;
+        } else {
+          grabRect.left -= backwardExtension;
+        }
 
         for (const target of state.players) {
           if (target === p || target.eliminated) continue;
@@ -522,7 +579,7 @@ window.AttackSystem = (() => {
               setAnim(p, "grab_clank", false, state, 1);
               spawnGlobalEffect(state, p, "fx_clank");
               target.attack.phase = "clank";
-              releaseGrabbedTarget(target);
+              releaseGrabbedTarget(target, state);
               setAnim(target, "grab_clank", false, state, 1);
               return;
             }
@@ -613,6 +670,13 @@ window.AttackSystem = (() => {
 
       const target = p.attack.grabbedTarget;
       if (target && !target.eliminated) {
+        // DEBUG: Log HP grab progress
+        console.log(
+          `[Grab DEBUG] HP frame ${currentFrame}, throwFrame=${
+            grabConfig.throwFrame || 7
+          }, target=${target.charName}, targetGrabbed=${target.isGrabbed}`
+        );
+
         // HP Logic:
         target.rotation = 90 * p.facing;
         target.pos.x = p.pos.x; // Centered under HP
@@ -643,17 +707,21 @@ window.AttackSystem = (() => {
 
         // Throw/Impact
         if (currentFrame >= (grabConfig.throwFrame || 7)) {
-          console.log(`[Grab] HP Piledriver Impact!`);
+          console.log(`[Grab] HP Piledriver Impact! (frame ${currentFrame})`);
 
           // 1. EXECUTE MECHANICS (Steal charges first to boost damage)
           executeGrabSignatureMechanic(p, target, state);
 
           // 2. ATOMIC RELEASE - CRITICAL FIX
           // Remove "grabbed" status BEFORE applying damage/knockback.
+          console.log(`[Grab DEBUG] Releasing ${target.charName} from HP grab`);
           target.isGrabbed = false;
           target.grabbedBy = null;
           target.rotation = 0; // Reset rotation
           p.attack.grabbedTarget = null;
+
+          // CRITICAL: Use proper release function to ensure cleanup
+          releaseGrabbedTarget(p, state);
 
           // 3. Reset Position
           p.pos.y = p.attack.grabStartY; // Ensure HP lands
@@ -670,6 +738,18 @@ window.AttackSystem = (() => {
         !p.attack.grabbedTarget &&
         currentFrame >= (grabConfig.detectFrames || 2)
       ) {
+        console.log(`[Grab DEBUG] HP grab missed, transitioning to recovery`);
+        p.attack.phase = "recovery";
+        p.invincible = false;
+        setAnim(p, "grab_recovery", false, state, 0.5);
+      }
+
+      // EMERGENCY: If grab has been active for too long, force release
+      if (p.attack.grabbedTarget && currentFrame > 20) {
+        console.log(
+          `[Grab DEBUG] EMERGENCY: HP grab stuck at frame ${currentFrame}, force releasing`
+        );
+        releaseGrabbedTarget(p, state);
         p.attack.phase = "recovery";
         p.invincible = false;
         setAnim(p, "grab_recovery", false, state, 0.5);
@@ -677,8 +757,12 @@ window.AttackSystem = (() => {
     }
 
     if (p.attack.phase === "recovery" || p.attack.phase === "clank") {
+      console.log(
+        `[Grab DEBUG] HP recovery/clank phase, animFinished=${p.animFinished}`
+      );
       p.invincible = false;
       if (p.animFinished) {
+        console.log(`[Grab DEBUG] HP grab fully completed`);
         p.attack = { type: "none", phase: "none" };
       }
     }
@@ -712,9 +796,26 @@ window.AttackSystem = (() => {
         if (!p.attack.grabChecked) {
           // Check for grab hit
           const grabRect = Renderer.getHurtbox(p); // Simplified grab box (body range)
-          // Expand rect slightly forward
-          grabRect.w += 60;
-          if (p.facing === -1) grabRect.left -= 60;
+          // Expand rect slightly forward (scale up when beat-charged)
+          const _grabExpansionBase =
+            (typeof grabConfig !== "undefined" && grabConfig.range) || 120;
+          const _grab_expansion =
+            p?.perfectBeatCount > 0
+              ? Math.round(_grabExpansionBase * 1.44)
+              : _grabExpansionBase;
+          // Ensure grab box is at least 40% wider than character hurtbox (increased from 30%)
+          const minExpansion = Math.ceil(grabRect.w * 0.4);
+          const finalExpansion = Math.max(_grab_expansion, minExpansion);
+          // Also expand vertically to catch dodges
+          grabRect.h *= 1.4; // 40% taller hitbox
+          // Extend backwards slightly to catch roll dodges
+          const backwardExtension = Math.round(finalExpansion * 0.5);
+          grabRect.w += finalExpansion + backwardExtension;
+          if (p.facing === -1) {
+            grabRect.left -= finalExpansion + backwardExtension;
+          } else {
+            grabRect.left -= backwardExtension;
+          }
 
           for (const target of state.players) {
             if (target === p || target.eliminated) continue;
@@ -737,7 +838,7 @@ window.AttackSystem = (() => {
 
                 // Force target to clank too (simultaneous interaction)
                 target.attack.phase = "clank";
-                releaseGrabbedTarget(target);
+                releaseGrabbedTarget(target, state);
                 setAnim(target, "grab_clank", false, state, 1);
                 p.invincible = false;
                 return;
@@ -1259,13 +1360,13 @@ window.AttackSystem = (() => {
             p.attack.type
           )}, IsHurt=${isHurt}`
         );
-        releaseGrabbedTarget(p);
+        releaseGrabbedTarget(p, state);
       }
     }
 
     // EDGE CASE FIX: Cleanup grab state if grabber was eliminated
     if (p.eliminated && p.attack.grabbedTarget) {
-      releaseGrabbedTarget(p);
+      releaseGrabbedTarget(p, state);
     }
 
     // Handle specific attack types that need custom logic
@@ -1789,8 +1890,9 @@ window.AttackSystem = (() => {
         descriptor.tier === "GRAB" || attacker.attack?.type === "grab";
       let beatMultiplier;
       if (isGrab) {
-        // Linear scaling: 1 charge = factor 1, 10 charges = factor 10
-        beatMultiplier = Math.min(attacker.perfectBeatCount, 10);
+        // Linear scaling: 1 charge = +100% (2x), 9 charges = +900% (10x)
+        // Improved from previous (Math.min) to ensure 1 charge gives a bonus.
+        beatMultiplier = 1 + attacker.perfectBeatCount;
       } else {
         // Standard scaling: 1 beat = 1/9 of 5x = 5/9x, 9 beats = 5x
         beatMultiplier = 1 + (attacker.perfectBeatCount / 9) * 4; // 1 + (beats/9) * 4 = 1 to 5x
@@ -1842,8 +1944,9 @@ window.AttackSystem = (() => {
         descriptor.tier === "GRAB" || attacker.attack?.type === "grab";
       let beatMultiplier;
       if (isGrab) {
-        // Linear scaling: 1 charge = factor 1, 10 charges = factor 10
-        beatMultiplier = Math.min(attacker.perfectBeatCount, 10);
+        // Linear scaling: 1 charge = +100% (2x), 9 charges = +900% (10x)
+        // Improved from previous (Math.min) to ensure 1 charge gives a bonus.
+        beatMultiplier = 1 + attacker.perfectBeatCount;
       } else {
         // Standard scaling: 1 beat = 1/9 of 5x = 5/9x, 9 beats = 5x
         beatMultiplier = 1 + (attacker.perfectBeatCount / 9) * 4; // 1 + (beats/9) * 4 = 1 to 5x
@@ -2021,19 +2124,61 @@ window.AttackSystem = (() => {
     }
   }
 
-  function releaseGrabbedTarget(p) {
-    if (p.attack && p.attack.grabbedTarget) {
-      const target = p.attack.grabbedTarget;
+  function releaseGrabbedTarget(p, state) {
+    console.log(
+      `[Grab DEBUG] releaseGrabbedTarget called for P${p.padIndex + 1}`
+    );
+    if (!p || !p.attack) return;
+
+    // Known grab-tracking fields across handlers
+    const grabFields = [
+      "grabbedTarget",
+      "maxChargeGrabbedTarget",
+      "savedTarget",
+      "pendingGrabTarget",
+    ];
+
+    for (const field of grabFields) {
+      const target = p.attack[field];
       if (target) {
-        target.isGrabbed = false;
-        target.grabbedBy = null;
+        console.log(
+          `[Grab DEBUG] Releasing ${target.charName} from ${field} for P${
+            p.padIndex + 1
+          }`
+        );
+        try {
+          target.isGrabbed = false;
+        } catch (e) {}
+        try {
+          target.grabbedBy = null;
+        } catch (e) {}
+        if (target.attack && target.attack.isGrabbed) {
+          try {
+            delete target.attack.isGrabbed;
+          } catch (e) {}
+        }
         // Reset target velocities to prevent stuck state
         if (!target.eliminated) {
+          target.vel = target.vel || { x: 0, y: 0 };
           target.vel.x = 0;
           target.vel.y = 0;
         }
+        // Defensive animation fallback: if still stuck on is_grabbed, nudge to sensible anim
+        if (typeof setAnim === "function" && target.anim === "is_grabbed") {
+          console.log(
+            `[Grab DEBUG] Force-changing ${target.charName} animation from is_grabbed to fallback`
+          );
+          if (!target.grounded) {
+            setAnim(target, "jump_fall", false, state);
+          } else if ((target.stunT || 0) > 0) {
+            setAnim(target, "hurt", false, state);
+          } else {
+            setAnim(target, "idle", true, state);
+          }
+        }
       }
-      p.attack.grabbedTarget = null;
+      // Clear field on attacker
+      if (p.attack[field]) p.attack[field] = null;
     }
   }
 
@@ -2119,7 +2264,7 @@ window.AttackSystem = (() => {
     const comboSteps = descriptor?.combo?.steps || [];
     const stepConfig = comboSteps[stepIndex - 1] || {};
 
-    releaseGrabbedTarget(p);
+    releaseGrabbedTarget(p, state);
 
     p.attack.phase = "active";
     p.attack.comboStep = stepIndex;
@@ -3332,7 +3477,7 @@ window.AttackSystem = (() => {
 
   function handleR1ComboActive(p, inputs, state, grounded, dt) {
     if (!grounded) {
-      releaseGrabbedTarget(p);
+      releaseGrabbedTarget(p, state);
       return;
     }
 
@@ -3343,7 +3488,7 @@ window.AttackSystem = (() => {
     const comboSteps = descriptor?.combo?.steps || [];
 
     if (!comboSteps.length) {
-      releaseGrabbedTarget(p);
+      releaseGrabbedTarget(p, state);
       p.attack = { type: "none", phase: "none" };
       return;
     }
@@ -3352,7 +3497,7 @@ window.AttackSystem = (() => {
     const currentStep = comboSteps[stepIndex - 1];
 
     if (!currentStep) {
-      releaseGrabbedTarget(p);
+      releaseGrabbedTarget(p, state);
       p.attack = { type: "none", phase: "none" };
       return;
     }
@@ -3371,7 +3516,7 @@ window.AttackSystem = (() => {
     if (p.attack.grabbedTarget) {
       const target = p.attack.grabbedTarget;
       if (!target || target.eliminated) {
-        releaseGrabbedTarget(p);
+        releaseGrabbedTarget(p, state);
       } else if (currentStep.dragTarget) {
         const offset =
           currentStep.dragOffset ??
@@ -3383,7 +3528,7 @@ window.AttackSystem = (() => {
         target.vel.x = 0;
         target.vel.y = 0;
       } else {
-        releaseGrabbedTarget(p);
+        releaseGrabbedTarget(p, state);
       }
     }
 
@@ -3433,7 +3578,7 @@ window.AttackSystem = (() => {
           p.attack.pendingFinisher = null;
           applyDamageWithDescriptor(p, target, finisherDescriptor, state);
         } else {
-          releaseGrabbedTarget(p);
+          releaseGrabbedTarget(p, state);
         }
 
         p.attack = { type: "none", phase: "none" };
@@ -3446,7 +3591,7 @@ window.AttackSystem = (() => {
         return;
       }
 
-      releaseGrabbedTarget(p);
+      releaseGrabbedTarget(p, state);
       p.attack = { type: "none", phase: "none" };
     }
   }
@@ -6499,6 +6644,7 @@ window.AttackSystem = (() => {
     resetPerfectBeatMatch,
     updateBeatMatchVisualEffects,
     clearBeatMatchVisualEffects,
+    releaseGrabbedTarget,
   };
 })();
 

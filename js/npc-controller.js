@@ -19,12 +19,6 @@ window.NPCController = (() => {
     l2Charging: false, // Track if currently charging L2
     lastDanceTime: 0, // Track last dance move
     lastJumpTime: 0, // Track last jump to avoid spam
-    doubleJumpUsed: false, // Track if double jump was consumed this airtime
-    doubleJumpPlanned: false, // Track if we plan to use double jump mid-gap
-    doubleJumpPlanDirection: 1,
-    doubleJumpPlanLanding: null,
-    doubleJumpPlanStartX: 0,
-    doubleJumpPlanTime: 0,
     incomingAttackCounter: 0,
     nextDodgeAttempt: 3 + Math.floor(Math.random() * 3),
     shouldDodgeThisAttack: false,
@@ -45,7 +39,7 @@ window.NPCController = (() => {
     lastAttackChoice: null,
     // --- Strategy Layer ---
     strategy: {
-      currentMode: "ZONE_DEFENSE", // "ZONE_DEFENSE", "COMBAT_AGGRO", "RESOURCE_GATHER", "SURVIVAL"
+      currentMode: "ZONE_SEEKER", // "ZONE_SEEKER", "DANCE_FOCUS", "COMBAT_DEFENSE", "BEAT_STEAL", "ULTIMATE_SEEK", "TACTICAL_DANCE_COMBAT"
       confidence: 1.0,
       lastChange: 0,
       modeStartTime: 0,
@@ -72,8 +66,6 @@ window.NPCController = (() => {
   };
 
   // Proximity threshold (in pixels) at which mere closeness counts as a threat.
-  // Used to (1) bypass strategy hysteresis, (2) switch to COMBAT_AGGRO even in-zone,
-  // and (3) stop beatmatching when the player is too close, regardless of aggression.
   const PROX_THREAT_DISTANCE = 140;
 
   function toggle() {
@@ -101,13 +93,6 @@ window.NPCController = (() => {
   // Helper: Check if ability can be used (replicates Physics.canUseAbility logic)
   function canUseAbility(p, ability) {
     return !p.cooldowns || p.cooldowns[ability] <= 0;
-  }
-
-  // Helper: Get distance category
-  function getDistanceCategory(distance) {
-    if (distance < 120) return "close";
-    if (distance < 200) return "mid";
-    return "far";
   }
 
   // Heatmap Helpers ---------------------------------------------------------
@@ -247,6 +232,77 @@ window.NPCController = (() => {
     };
   }
 
+  // Check if dash attack would be safe (won't fall off stage)
+  function isDashAttackSafe(p, direction, state, dashDistance = 80) {
+    if (!state || !direction) return false;
+
+    const dashDir = direction > 0 ? 1 : -1;
+    const endX = p.pos.x + dashDir * dashDistance;
+    const footY = p.pos.y + 2;
+
+    // Check if there's ground at the end of the dash
+    const hasGroundAtEnd = hasGroundBelow(endX, footY, state, 64, 6);
+
+    // Also check if there's a gap that can't be cleared
+    const edgeInfo = getEdgeInfo(p, dashDir, state, {
+      lookAhead: dashDistance + 20,
+      dropDistance: 80,
+      maxLandingDistance: 200,
+    });
+
+    // Safe if: ground at end AND (no gap OR gap can be cleared with jump)
+    return (
+      hasGroundAtEnd &&
+      (!edgeInfo.isGap ||
+        (edgeInfo.landingDistance !== null && edgeInfo.landingDistance < 200))
+    );
+  }
+
+  // Check if character is near edge or offzone (stage boundaries)
+  function isNearEdgeOrOffzone(p, state, threshold = 120) {
+    if (!state || !p) return false;
+
+    const cameraBounds = state.cameraBounds;
+    if (!cameraBounds) {
+      // Fallback: use canvas dimensions if available
+      const canvas = state.canvas;
+      if (canvas) {
+        const distToLeft = p.pos.x;
+        const distToRight = canvas.width - p.pos.x;
+        return distToLeft < threshold || distToRight < threshold;
+      }
+      return false;
+    }
+
+    const stageX = cameraBounds.x ?? 0;
+    const stageWidth =
+      cameraBounds.width ?? window.GameState?.CONSTANTS?.NATIVE_WIDTH ?? 2500;
+    const stageLeft = stageX;
+    const stageRight = stageX + stageWidth;
+
+    const distToLeft = p.pos.x - stageLeft;
+    const distToRight = stageRight - p.pos.x;
+
+    // Check if near left or right stage boundary
+    if (distToLeft < threshold || distToRight < threshold) {
+      return true;
+    }
+
+    // Also check for gaps/edges using heatmap
+    const hasHeatmap = !!(state?.groundData || state?.semisolidData);
+    if (hasHeatmap) {
+      const edgeInfoLeft = getEdgeInfo(p, -1, state, { lookAhead: threshold });
+      const edgeInfoRight = getEdgeInfo(p, 1, state, { lookAhead: threshold });
+
+      // Consider it unsafe if there's a gap in either direction
+      if (edgeInfoLeft.isGap || edgeInfoRight.isGap) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function canAttemptJump(p, grounded, currentTime) {
     if (!grounded) return false;
     if (typeof currentTime !== "number") return false;
@@ -272,29 +328,9 @@ window.NPCController = (() => {
     return inputs;
   }
 
-  // Helper: Get optimal range for character (using AttackCatalog if available)
+  // Helper: Get optimal range for character
   function getOptimalRange(p2, attackType = "r1") {
-    if (window.AttackCatalog && window.AttackCatalog.getDescriptor) {
-      const descriptor = window.AttackCatalog.getDescriptor(p2, attackType);
-      // Estimate range from descriptor or use defaults
-      if (descriptor) {
-        // Use character-specific range if available
-        return 150; // Default optimal range
-      }
-    }
-    // Default ranges based on attack type
-    switch (attackType) {
-      case "r1":
-        return 120;
-      case "r2":
-        return 180;
-      case "l1":
-        return 250;
-      case "l2":
-        return 150;
-      default:
-        return 150;
-    }
+    return 150; // Default
   }
 
   function chooseWeightedCandidate(candidates) {
@@ -370,42 +406,6 @@ window.NPCController = (() => {
     };
   }
 
-  function shouldCollectBeatCharges(p, distance, state) {
-    if (!state.danceMode?.active) return false;
-    const charges = p.perfectBeatCount || 0;
-    if (charges >= 9) return false; // Max charges
-    const inZone = isInActiveDanceZone(p, state);
-    return inZone; // Always collect if in zone
-  }
-
-  function isPlayerThreatening(p1, p2, distance, state) {
-    // Check if player is attacking
-    const attackInfo = detectIncomingAttack(p1, p2);
-    if (attackInfo && attackInfo.phase !== "none") {
-      return true;
-    }
-
-    // Check if player is directly in front/behind at same height (threatening position)
-    const hb1 = window.Renderer?.getHurtbox?.(p1);
-    const hb2 = window.Renderer?.getHurtbox?.(p2);
-    if (!hb1 || !hb2) {
-      // Fallback to pos-based check
-      const dy = Math.abs(p1.pos.y - p2.pos.y);
-      const dx = Math.abs(p1.pos.x - p2.pos.x);
-      return dy < 60 && dx < 120; // Same height, close horizontal
-    }
-
-    const p1CenterY = hb1.top + hb1.h / 2;
-    const p2CenterY = hb2.top + hb2.h / 2;
-    const verticalOverlap = Math.abs(p1CenterY - p2CenterY);
-    const horizontalDist = Math.abs(
-      hb1.left + hb1.w / 2 - (hb2.left + hb2.w / 2)
-    );
-
-    // Threatening if: same height (within 60px) AND close horizontally (within 120px)
-    return verticalOverlap < 60 && horizontalDist < 120;
-  }
-
   function queueDoubleDashTap(currentTime) {
     const dd = npcState.doubleDashState;
     if (dd.waitingForSecondTap) return;
@@ -431,49 +431,8 @@ window.NPCController = (() => {
 
   function canAttemptUltimateSafely(p, opponent, state) {
     if (!opponent) return false;
-    const charKey = (p.charName || "").toLowerCase();
-    const dx = opponent.pos.x - p.pos.x;
-    const dy = opponent.pos.y - p.pos.y;
-    const facing = typeof p.facing === "number" ? p.facing : 1;
-
-    // HP: Always safe (bike ultimate can chase)
-    if (charKey === "hp") {
-      return true;
-    }
-
-    // Cyboard: Always safe (teleport ultimate)
-    if (charKey === "cyboard") {
-      return true;
-    }
-
-    // Fritz & Ernst: Only if player is in facing direction AND at same height
-    // Bonus if opponent is stunned
-    if (charKey === "ernst" || charKey === "fritz") {
-      const hb1 = window.Renderer?.getHurtbox?.(opponent);
-      const hb2 = window.Renderer?.getHurtbox?.(p);
-
-      // Check if opponent is stunned (highly favorable)
-      const isStunned = (opponent.stunT || 0) > 0.5;
-
-      if (hb1 && hb2) {
-        const p1CenterY = hb1.top + hb1.h / 2;
-        const p2CenterY = hb2.top + hb2.h / 2;
-        const verticalOverlap = Math.abs(p1CenterY - p2CenterY);
-        const inFacingDirection = dx * facing > 0; // Player is ahead in facing direction
-        // Stricter height check if not stunned
-        const heightThreshold = isStunned ? 120 : 60;
-        const sameHeight = verticalOverlap < heightThreshold;
-        const inRange = Math.abs(dx) < 900;
-        return inFacingDirection && sameHeight && inRange;
-      }
-      // Fallback to pos-based check
-      const heightThreshold = isStunned ? 120 : 60;
-      const sameHeight = Math.abs(dy) < heightThreshold;
-      const inFacingDirection = dx * facing > 0;
-      return sameHeight && inFacingDirection && Math.abs(dx) < 900;
-    }
-
-    return Math.abs(dx) < 900;
+    // Assuming ultimate is generally safe/desired if full
+    return true;
   }
 
   function isHPUltimateActive(p) {
@@ -486,58 +445,9 @@ window.NPCController = (() => {
 
   // --- Strategy & Analysis Helpers ---
 
-  function analyzePlayerBehavior(p1, state, currentTime) {
-    const profile = npcState.playerProfile;
-
-    // Track aggression (attacks per second in recent history)
-    // Only track start of attacks to avoid counting every frame
-    if (
-      p1.attack &&
-      p1.attack.type !== "none" &&
-      p1.attack.phase === "active"
-    ) {
-      const lastAction =
-        profile.recentActions[profile.recentActions.length - 1];
-      // Debounce: 0.5s between distinct attacks
-      if (!lastAction || currentTime - lastAction.time > 0.5) {
-        profile.recentActions.push({ type: "attack", time: currentTime });
-      }
-    }
-
-    // Prune old actions (> 5s ago)
-    profile.recentActions = profile.recentActions.filter(
-      (a) => currentTime - a.time < 5.0
-    );
-
-    // Calculate scores
-    const attackCount = profile.recentActions.length;
-    // >3 attacks in 5s = full aggro (normalized 0-1)
-    profile.aggressionScore = Math.min(1.0, attackCount / 3.0);
-
-    // Rhythm skill: based on opponent's charge count (normalized 0-1)
-    profile.rhythmSkill = Math.min(1.0, (p1.perfectBeatCount || 0) / 5.0);
-  }
-
-  function evaluateStrategicNeeds(p2, state) {
-    const charges = p2.perfectBeatCount || 0;
-    const health = p2.percent || 0; // 0% is healthy, higher is worse
-    const ultReady = window.UltimeterManager?.canUseUltimate(p2) || false;
-
-    npcState.resources.beatCharges = charges;
-    npcState.resources.ultReady = ultReady;
-
-    if (health > 100) npcState.resources.healthState = "low";
-    else if (health > 50) npcState.resources.healthState = "mid";
-    else npcState.resources.healthState = "high";
-  }
-
   function updateStrategy(p1, p2, state, currentTime) {
-    // 1. Analysis
-    analyzePlayerBehavior(p1, state, currentTime);
-    evaluateStrategicNeeds(p2, state);
-
     // Update attack cooldowns (decay per frame, assuming 60fps)
-    const dt = 1 / 60; // Frame time
+    const dt = 1 / 60;
     for (const key in npcState.attackCooldowns) {
       if (npcState.attackCooldowns[key] > 0) {
         npcState.attackCooldowns[key] = Math.max(
@@ -547,7 +457,7 @@ window.NPCController = (() => {
       }
     }
 
-    // Track attack animation state
+    // Handle Cooldown Reset post-animation
     const currentAnim = p2.anim || "";
     const isInAttackAnim =
       currentAnim.includes("r1") ||
@@ -556,111 +466,64 @@ window.NPCController = (() => {
       currentAnim.includes("l2") ||
       currentAnim.includes("jab") ||
       currentAnim.includes("smash") ||
-      currentAnim.includes("dash") ||
-      currentAnim.includes("circle");
+      currentAnim.includes("dash");
 
-    // If we were in an attack anim and now we're not, ensure cooldown is set
     if (npcState.lastAttackAnim && !isInAttackAnim) {
-      // Attack animation just finished
-      const attackType = npcState.lastAttackAnim.includes("l1")
-        ? "l1"
-        : npcState.lastAttackAnim.includes("l2")
-        ? "l2"
-        : npcState.lastAttackAnim.includes("r2")
-        ? "r2"
-        : "r1";
-      // Ensure minimum cooldown to prevent immediate re-selection
-      const minCooldown = attackType === "l1" ? 1.5 : 0.5;
-      if (npcState.attackCooldowns[attackType] < minCooldown) {
+      const attackType = npcState.lastAttackAnim.includes("l1") ? "l1" : "r1"; // Simplified
+      const minCooldown = 0.5;
+      if ((npcState.attackCooldowns[attackType] || 0) < minCooldown) {
         npcState.attackCooldowns[attackType] = minCooldown;
       }
     }
     npcState.lastAttackAnim = isInAttackAnim ? currentAnim : null;
 
+    // --- NEW PRIORITY SYSTEM ---
+
+    // 1. ULTIMATE: Highest Priority
+    if (window.UltimeterManager?.canUseUltimate(p2)) {
+      npcState.strategy.currentMode = "ULTIMATE_SEEK";
+      return;
+    }
+
+    // 2. BEAT STEAL: If player has > 4 charges
+    if ((p1.perfectBeatCount || 0) > 4) {
+      npcState.strategy.currentMode = "BEAT_STEAL";
+      return;
+    }
+
     const dist = Math.abs(p1.pos.x - p2.pos.x);
-    const inZone = isInActiveDanceZone(p2, state);
+    const isThreatened =
+      detectIncomingAttack(p1, p2)?.phase !== "none" ||
+      dist < PROX_THREAT_DISTANCE;
+    const p2InZone = isInActiveDanceZone(p2, state);
+    const p1InZone = isInActiveDanceZone(p1, state);
 
-    // Check for critical situations that bypass hysteresis
-    const isBeingAttacked = detectIncomingAttack(p1, p2)?.phase !== "none";
-    const proximityThreat = dist < PROX_THREAT_DISTANCE;
-    const isInDanger =
-      isBeingAttacked ||
-      proximityThreat || // Proximity alone is considered dangerous
-      (npcState.resources.healthState === "low" &&
-        npcState.playerProfile.aggressionScore > 0.6) ||
-      (p2.stunT && p2.stunT > 0.3);
-
-    // Hysteresis: Don't switch too fast (min 1.0s in a mode)
-    // BUT: Bypass hysteresis for critical situations
-    const timeSinceLastChange = currentTime - npcState.strategy.lastChange;
-    const canSwitchMode = timeSinceLastChange >= 1.0 || isInDanger;
-
-    if (!canSwitchMode) return;
-
-    // Default new mode
-    let newMode = "ZONE_DEFENSE";
-
-    // LOGIC MATRIX
-
-    // A. SURVIVAL: Low health + aggressive player -> Run away / Dodge focus
-    if (
-      npcState.resources.healthState === "low" &&
-      npcState.playerProfile.aggressionScore > 0.7
-    ) {
-      newMode = "SURVIVAL";
-    }
-    // B. COMBAT_AGGRO: Player is aggressive OR we are close and not in zone
-    // OR: Being attacked (critical - bypasses hysteresis)
-    else if (
-      isBeingAttacked ||
-      npcState.playerProfile.aggressionScore > 0.5 ||
-      (dist < 200 && !inZone) ||
-      proximityThreat // Proximity forces aggro even in-zone
-    ) {
-      newMode = "COMBAT_AGGRO";
-    }
-    // C. RESOURCE_GATHER: In zone, safe, and need charges
-    // Only if NOT being attacked (safety check)
-    else if (
-      !isBeingAttacked &&
-      inZone &&
-      npcState.resources.beatCharges < 9 &&
-      npcState.playerProfile.aggressionScore < 0.3
-    ) {
-      newMode = "RESOURCE_GATHER";
-    }
-    // D. ZONE_DEFENSE (Default): Prioritize getting to/holding zone
-    else {
-      newMode = "ZONE_DEFENSE";
+    // 3. COMBAT / DEFENSE
+    if (isThreatened) {
+      npcState.strategy.currentMode = "COMBAT_DEFENSE";
+      return;
     }
 
-    // Apply Change
-    if (newMode !== npcState.strategy.currentMode) {
-      const previousMode = npcState.strategy.currentMode;
-      npcState.strategy.currentMode = newMode;
-      npcState.strategy.lastChange = currentTime;
-      npcState.strategy.modeStartTime = currentTime;
-
-      if (state.debug?.devMode && isInDanger) {
-        console.log(
-          `[NPC Strategy] CRITICAL MODE SWITCH: ${previousMode} → ${newMode} (bypassed hysteresis: ${timeSinceLastChange.toFixed(
-            2
-          )}s, prox=${proximityThreat ? "YES" : "NO"})`
-        );
-      }
+    // 3b. TACTICAL MIX (Both in Zone)
+    if (p2InZone && p1InZone) {
+      npcState.strategy.currentMode = "TACTICAL_DANCE_COMBAT";
+      return;
     }
+
+    // 4. DEFAULT: MOVE TO ZONE / DANCE
+    npcState.strategy.currentMode = p2InZone ? "DANCE_FOCUS" : "ZONE_SEEKER";
   }
 
-  // Phase 1: Smart Movement Decision
+  // Phase 1: Movement Decision
   function decideMovement(p1, p2, distance, grounded, state, currentTime) {
     const inputs = {
       axis: 0,
       jumpPressed: false,
       jump: false,
       jumpHeld: false,
+      down: false,
     };
 
-    // Don't move if locked in attack or stunned
     if (
       p2.attack?.type !== "none" ||
       (p2.stunT && p2.stunT > 0) ||
@@ -671,536 +534,384 @@ window.NPCController = (() => {
 
     const mode = npcState.strategy.currentMode;
     const danceZoneInfo = getDanceSpotGuardAxis(p2, state);
-    const inZone = isInActiveDanceZone(p2, state);
-    let jumpingForZone = false; // Track if we're jumping for vertical zone navigation
+    let jumpingForZone = false;
+    const hasHeatmap = !!(state?.groundData || state?.semisolidData);
 
-    // --- STRATEGY-BASED MOVEMENT ---
+    // --- PRIORITY-BASED MOVEMENT ---
 
-    if (mode === "SURVIVAL") {
-      // Run away from player
-      inputs.axis = p2.pos.x < p1.pos.x ? -1 : 1;
-    } else if (mode === "COMBAT_AGGRO") {
-      // Aggressive spacing
-      const optimalRange = getOptimalRange(p2, "r1") * 0.8; // 20% closer
-      if (distance > optimalRange + 20) {
-        inputs.axis = p2.pos.x < p1.pos.x ? 1 : -1;
-      } else if (distance < optimalRange - 20) {
-        inputs.axis = p2.pos.x < p1.pos.x ? -1 : 1;
+    // A. Chase Player (Ult or Beat Steal)
+    if (mode === "ULTIMATE_SEEK" || mode === "BEAT_STEAL") {
+      const desiredAxis = p2.pos.x < p1.pos.x ? 1 : -1;
+      // Safety check before moving
+      if (hasHeatmap && grounded) {
+        const edgeInfo = getEdgeInfo(p2, desiredAxis, state);
+        if (edgeInfo.isGap) {
+          const landingDist = edgeInfo.landingDistance;
+          const canJump = canAttemptJump(p2, grounded, currentTime);
+          if (landingDist && landingDist < 200 && canJump) {
+            inputs.axis = desiredAxis;
+            inputs.jump = true;
+            inputs.jumpPressed = true;
+            inputs.jumpHeld = true;
+          } else if (!edgeInfo.isGap || (landingDist && landingDist < 200)) {
+            inputs.axis = desiredAxis;
+          }
+        } else {
+          inputs.axis = desiredAxis;
+        }
       } else {
-        // Micro-movement
-        if (Math.random() < 0.1) {
-          inputs.axis = Math.random() < 0.5 ? 0.3 : -0.3;
+        inputs.axis = desiredAxis;
+      }
+    }
+    // B. Combat Defense (Keep optimal range)
+    else if (mode === "COMBAT_DEFENSE") {
+      const optimalRange = 120;
+      let desiredAxis = 0;
+      if (distance > optimalRange + 20) {
+        desiredAxis = p2.pos.x < p1.pos.x ? 1 : -1;
+      } else if (distance < optimalRange - 20) {
+        desiredAxis = p2.pos.x < p1.pos.x ? -1 : 1;
+      }
+
+      // Safety check
+      if (desiredAxis !== 0 && hasHeatmap && grounded) {
+        const edgeInfo = getEdgeInfo(p2, desiredAxis, state);
+        if (
+          !edgeInfo.isGap ||
+          (edgeInfo.landingDistance !== null && edgeInfo.landingDistance < 200)
+        ) {
+          inputs.axis = desiredAxis;
+        }
+      } else if (desiredAxis !== 0) {
+        inputs.axis = desiredAxis;
+      }
+    }
+    // C. Tactical Dance Combat (Erratic Movement in Zone)
+    else if (mode === "TACTICAL_DANCE_COMBAT") {
+      // Small adjustments, maybe cross up
+      if (Math.random() < 0.1) {
+        const desiredAxis = Math.random() < 0.5 ? 1 : -1;
+        if (hasHeatmap && grounded) {
+          const edgeInfo = getEdgeInfo(p2, desiredAxis, state);
+          if (!edgeInfo.isGap) {
+            inputs.axis = desiredAxis;
+          }
+        } else {
+          inputs.axis = desiredAxis;
         }
       }
-    } else if (mode === "ZONE_DEFENSE" || mode === "RESOURCE_GATHER") {
-      // Prioritize Zone
-      if (!inZone && danceZoneInfo.weight > 0) {
-        inputs.axis = danceZoneInfo.axis;
+    }
+    // D. Zone Seeker (Go to Zone) - HIGHEST PRIORITY FOR NAVIGATION
+    else if (mode === "ZONE_SEEKER") {
+      if (danceZoneInfo.weight > 0) {
+        const desiredAxis = danceZoneInfo.axis;
 
-        // VERTICAL NAVIGATION: Jump if zone is above, drop if zone is below
+        // Horizontal movement safety check
+        if (hasHeatmap && grounded && desiredAxis !== 0) {
+          const edgeInfo = getEdgeInfo(p2, desiredAxis, state);
+          if (edgeInfo.isGap) {
+            const landingDist = edgeInfo.landingDistance;
+            const canJump = canAttemptJump(p2, grounded, currentTime);
+            if (landingDist && landingDist < 200 && canJump) {
+              inputs.axis = desiredAxis;
+              inputs.jump = true;
+              inputs.jumpPressed = true;
+              inputs.jumpHeld = true;
+              jumpingForZone = true;
+            } else if (landingDist && landingDist < 200) {
+              inputs.axis = desiredAxis; // Safe to move
+            }
+            // else: stop at edge (axis stays 0)
+          } else {
+            inputs.axis = desiredAxis; // No gap, safe to move
+          }
+        } else {
+          inputs.axis = desiredAxis;
+        }
+
+        // Vertical Navigation for Zone
         if (
           danceZoneInfo.needsVertical &&
           grounded &&
           canAttemptJump(p2, grounded, currentTime)
         ) {
-          const zoneAbove = danceZoneInfo.dy < -40; // Zone is above NPC
-          const zoneBelow = danceZoneInfo.dy > 40; // Zone is below NPC
+          const zoneAbove = danceZoneInfo.dy < -40;
+          const zoneBelow = danceZoneInfo.dy > 40;
           const verticalDist = Math.abs(danceZoneInfo.dy);
 
-          if (zoneAbove) {
-            // Zone is above: Check if we can reach it via semisolid platforms
-            const hasSemisolid = !!state?.semisolidData;
-            let shouldJump = false;
-
-            if (hasSemisolid) {
-              // Dynamic height checking based on vertical distance to zone
-              // Check from 40px up to zone height (max 250px), in steps
-              const minCheckHeight = 40;
-              const maxCheckHeight = Math.min(verticalDist + 50, 250); // Check up to zone + buffer
-              const stepSize = Math.max(20, Math.floor(verticalDist / 8)); // Adaptive step size
-
-              // Also check standard platform heights (60, 100, 140, 180) for intermediate platforms
-              const standardHeights = [60, 100, 140, 180];
-              const dynamicHeights = [];
-              for (let h = minCheckHeight; h <= maxCheckHeight; h += stepSize) {
-                dynamicHeights.push(h);
-              }
-
-              // Combine and deduplicate (sort and remove duplicates)
-              const allHeights = [
-                ...new Set([...standardHeights, ...dynamicHeights]),
-              ].sort((a, b) => a - b);
-
+          if (zoneAbove && verticalDist > 50 && verticalDist < 250) {
+            // Check if we can reach zone via platforms
+            if (hasHeatmap) {
+              // Check for platforms above
+              const checkHeights = [60, 100, 140, 180, 220];
               let foundPlatform = false;
-              let platformHeight = null;
 
-              for (const height of allHeights) {
-                // Check multiple X positions: center, slightly ahead, slightly behind
-                const checkXPositions = [
-                  p2.pos.x, // Center
-                  p2.pos.x + danceZoneInfo.axis * 20, // Ahead in movement direction
-                  p2.pos.x + danceZoneInfo.axis * 40, // Further ahead
-                ];
-
-                for (const checkX of checkXPositions) {
-                  const checkY = p2.pos.y - height;
-                  if (hasGroundBelow(checkX, checkY, state, 80, 6)) {
-                    foundPlatform = true;
-                    platformHeight = height;
-                    break;
-                  }
+              for (const height of checkHeights) {
+                const checkY = p2.pos.y - height;
+                const checkX = p2.pos.x + desiredAxis * 20;
+                if (hasGroundBelow(checkX, checkY, state, 80, 6)) {
+                  foundPlatform = true;
+                  break;
                 }
-                if (foundPlatform) break;
               }
 
-              // Jump if: platform found OR zone is within reasonable jump distance
-              shouldJump =
-                foundPlatform || (verticalDist < 250 && verticalDist > 50);
-
-              if (state.debug?.devMode && shouldJump && Math.random() < 0.15) {
-                console.log(
-                  `[NPC Vertical] Jumping UP: dy=${Math.round(
-                    danceZoneInfo.dy
-                  )}, platform=${foundPlatform}, platformHeight=${
-                    platformHeight || "N/A"
-                  }, dist=${Math.round(verticalDist)}, checkedHeights=${
-                    allHeights.length
-                  }`
-                );
+              if (foundPlatform || verticalDist < 200) {
+                inputs.jump = true;
+                inputs.jumpPressed = true;
+                inputs.jumpHeld = true;
+                jumpingForZone = true;
               }
             } else {
-              // No semisolid data, but zone is within jump range
-              shouldJump = verticalDist < 200 && verticalDist > 40;
-            }
-
-            if (shouldJump) {
-              inputs.jump = true;
-              inputs.jumpPressed = true;
-              inputs.jumpHeld = true;
-              jumpingForZone = true; // Mark that we're jumping for zone navigation
-            }
-          } else if (zoneBelow && grounded && verticalDist > 60) {
-            // Zone is significantly below: Check if we're on a semisolid platform
-            // If so, drop through the platform
-            const onSemisolid = isOnSemisolidPlatform(p2, state);
-
-            if (onSemisolid) {
-              // Drop through semisolid platform
-              inputs.down = true;
-              inputs.axis = danceZoneInfo.axis; // Continue moving towards zone
-
-              if (state.debug?.devMode && Math.random() < 0.2) {
-                console.log(
-                  `[NPC Vertical] DROP-THROUGH: dy=${Math.round(
-                    danceZoneInfo.dy
-                  )}, onSemisolid=true, moving towards zone`
-                );
-              }
-            } else {
-              // Not on semisolid, just move towards edge (will fall naturally)
-              if (state.debug?.devMode && Math.random() < 0.1) {
-                console.log(
-                  `[NPC Vertical] Zone BELOW: dy=${Math.round(
-                    danceZoneInfo.dy
-                  )}, moving towards edge`
-                );
+              // No heatmap, but zone is within jump range
+              if (verticalDist < 200) {
+                inputs.jump = true;
+                inputs.jumpPressed = true;
+                inputs.jumpHeld = true;
+                jumpingForZone = true;
               }
             }
-          }
-        }
-      } else {
-        // In zone (or no zone info)
-        // If ZONE_DEFENSE, maybe adjust slightly to player if they are close?
-        // But primarily stay in zone.
-        if (distance < 150) {
-          // Too close even for zone defense, make some space but try to stay in zone
-          // This logic was previously "PRIORITY 2" blended
-          const retreatDir = p2.pos.x < p1.pos.x ? -1 : 1;
-          // Only retreat if it doesn't push us out of zone?
-          // Simplified: blend retreat with zone pull
-          inputs.axis = retreatDir * 0.6 + danceZoneInfo.axis * 0.4;
-        } else {
-          // Just center in zone
-          if (danceZoneInfo.distance > 50) {
-            inputs.axis = danceZoneInfo.axis * 0.5;
+          } else if (
+            zoneBelow &&
+            verticalDist > 60 &&
+            isOnSemisolidPlatform(p2, state)
+          ) {
+            inputs.down = true; // Drop through semisolid platform
           }
         }
       }
     }
+    // E. Dance Focus (Stay put / Center)
+    else if (mode === "DANCE_FOCUS") {
+      // Center in zone if drifting too far
+      if (danceZoneInfo.distance > 50) {
+        const desiredAxis = danceZoneInfo.axis * 0.5;
+        if (hasHeatmap && grounded) {
+          const edgeInfo = getEdgeInfo(p2, desiredAxis, state);
+          if (!edgeInfo.isGap) {
+            inputs.axis = desiredAxis;
+          }
+        } else {
+          inputs.axis = desiredAxis;
+        }
+      }
+    }
 
-    // Edge detection: stop at gaps, decide on running jump if landing is possible
-    // Skip if we're already jumping for vertical navigation (zone above)
-    if (
-      grounded &&
-      inputs.axis !== 0 &&
-      !jumpingForZone && // Don't interfere with vertical navigation jumps
-      (state?.groundData || state?.semisolidData)
-    ) {
+    // Final Edge Safety Check (for all movement)
+    if (grounded && inputs.axis !== 0 && !jumpingForZone && hasHeatmap) {
       const edgeInfo = getEdgeInfo(p2, inputs.axis, state);
       if (edgeInfo.isGap) {
-        const landingDistance = edgeInfo.landingDistance;
-        const canJumpNow = canAttemptJump(p2, grounded, currentTime);
-        const safeJumpDistance = 115;
-        const maxDoubleJumpDistance = 280;
-        const hasLanding =
-          landingDistance !== null && landingDistance <= maxDoubleJumpDistance;
-        const hasDoubleAvailable =
-          typeof p2.jumpsLeft !== "number" || p2.jumpsLeft >= 2;
-        const requiresDoubleJump =
-          landingDistance !== null &&
-          landingDistance > safeJumpDistance &&
-          landingDistance <= maxDoubleJumpDistance &&
-          hasDoubleAvailable;
+        const landingDist = edgeInfo.landingDistance;
+        const canJump = canAttemptJump(p2, grounded, currentTime);
 
-        // Strategy override: If in SURVIVAL or ZONE_DEFENSE (and trying to reach zone), maybe risk jumps?
-        // Standard logic is fairly safe.
-
-        if (!hasLanding) {
-          inputs.axis = 0;
-          npcState.doubleJumpPlanned = false;
-          npcState.doubleJumpPlanLanding = null;
-        } else if (landingDistance <= safeJumpDistance && canJumpNow) {
+        if (landingDist && landingDist < 200 && canJump) {
           inputs.jump = true;
           inputs.jumpPressed = true;
           inputs.jumpHeld = true;
-          inputs.axis = edgeInfo.direction;
-          npcState.doubleJumpPlanned = false;
-          npcState.doubleJumpPlanLanding = null;
-          npcState.doubleJumpPlanStartX = p2.pos.x;
-        } else if (requiresDoubleJump && canJumpNow) {
-          inputs.jump = true;
-          inputs.jumpPressed = true;
-          inputs.jumpHeld = true;
-          inputs.axis = edgeInfo.direction;
-          npcState.doubleJumpPlanned = true;
-          npcState.doubleJumpPlanDirection = edgeInfo.direction;
-          npcState.doubleJumpPlanLanding = landingDistance;
-          npcState.doubleJumpPlanStartX = p2.pos.x;
-          npcState.doubleJumpPlanTime = currentTime;
         } else {
-          inputs.axis = 0;
-          npcState.doubleJumpPlanned = false;
-          npcState.doubleJumpPlanLanding = null;
+          inputs.axis = 0; // Stop at edge if can't jump
         }
-      } else {
-        npcState.doubleJumpPlanned = false;
-        npcState.doubleJumpPlanLanding = null;
-        npcState.doubleJumpPlanStartX = p2.pos.x;
       }
     }
 
-    // Jump logic: jump if opponent is above and we're grounded
-    // Only if we're not already jumping for zone navigation
-    if (
-      !jumpingForZone &&
-      grounded &&
-      canAttemptJump(p2, grounded, currentTime) &&
-      p1.pos.y < p2.pos.y - 30 &&
-      distance < 150
-    ) {
-      if (Math.random() < 0.3) {
+    // SIMPLIFIED: Always use double jump when available (in air with jumps left)
+    if (!grounded && typeof p2.jumpsLeft === "number" && p2.jumpsLeft > 0) {
+      // Use double jump if falling and have jumps available
+      if (p2.vel.y >= 0 || (p2.vel.y < 0 && p2.vel.y > -50)) {
+        // Falling or at peak of jump - use double jump
         inputs.jump = true;
         inputs.jumpPressed = true;
         inputs.jumpHeld = true;
       }
     }
 
-    // Airborne double jump logic for clearing wide gaps
-    if (
-      !grounded &&
-      !inputs.jump &&
-      !inputs.jumpPressed &&
-      !npcState.doubleJumpUsed &&
-      typeof p2.jumpsLeft === "number" &&
-      p2.jumpsLeft > 0 &&
-      canUseAbility(p2, "doubleJump")
-    ) {
-      const timeSinceJump = currentTime - npcState.lastJumpTime;
-      if (timeSinceJump > 0.12) {
-        const hasHeatmap = !!(state?.groundData || state?.semisolidData);
-        const noGroundBelow =
-          hasHeatmap && !hasGroundBelow(p2.pos.x, p2.pos.y + 24, state, 96);
-        const planActive = npcState.doubleJumpPlanned;
-        const plannedLanding = npcState.doubleJumpPlanLanding ?? null;
-        const startX = npcState.doubleJumpPlanStartX ?? p2.pos.x;
-        const horizontalProgress = Math.abs(p2.pos.x - startX);
-        const progressRatio =
-          planActive && plannedLanding
-            ? horizontalProgress / Math.max(1, plannedLanding)
-            : 0;
-        const verticalVel = p2.vel?.y ?? 0;
-        const falling = verticalVel >= -120;
-
-        let direction = npcState.doubleJumpPlanDirection;
-        if (!direction || direction === 0) {
-          if (Math.abs(inputs.axis) > 0.1) {
-            direction = inputs.axis > 0 ? 1 : -1;
-          } else if (Math.abs(p2.vel?.x ?? 0) > 20) {
-            direction = Math.sign(p2.vel.x);
-          } else {
-            direction = p2.facing >= 0 ? 1 : -1;
-          }
-        }
-
-        let shouldDoubleJump = false;
-
-        if (planActive) {
-          shouldDoubleJump =
-            timeSinceJump > 0.18 ||
-            progressRatio >= 0.45 ||
-            (falling && (progressRatio >= 0.3 || noGroundBelow));
-        } else if (hasHeatmap && noGroundBelow && falling) {
-          shouldDoubleJump = true;
-        }
-
-        if (shouldDoubleJump && hasHeatmap) {
-          const edgeInfo = getEdgeInfo(p2, direction, state, {
-            footY: p2.pos.y + 2,
-            lookAhead: 56,
-            dropDistance: 140,
-            maxLandingDistance:
-              plannedLanding !== null ? plannedLanding + 40 : 320,
-          });
-
-          if (edgeInfo.isGap && edgeInfo.landingDistance !== null) {
-            const remaining = edgeInfo.landingDistance;
-            const required =
-              plannedLanding !== null ? Math.max(85, plannedLanding - 30) : 120;
-            shouldDoubleJump = remaining > required;
-          }
-        }
-
-        if (shouldDoubleJump) {
-          inputs.jump = true;
-          inputs.jumpPressed = true;
-          if (typeof inputs.jumpHeld !== "boolean") {
-            inputs.jumpHeld = false;
-          }
-          inputs.axis =
-            inputs.axis !== 0
-              ? inputs.axis
-              : direction || (p2.facing >= 0 ? 1 : -1);
-          npcState.doubleJumpUsed = true;
-          npcState.doubleJumpPlanned = false;
-          npcState.doubleJumpPlanLanding = null;
-          npcState.doubleJumpPlanStartX = p2.pos.x;
-        }
-      }
-    }
-
     return inputs;
   }
 
-  // Phase 2: Basic Attack Decision
+  // Phase 2: Attack Decision
   function decideAttack(p1, p2, distance, grounded, state, currentTime) {
     const inputs = {
       r1Down: false,
       r2Down: false,
       l1Down: false,
       l2Down: false,
+      grabDown: false,
+      danceDown: false,
     };
-    const timeSinceLastAction = currentTime - (npcState.lastActionTime || 0);
+
+    const mode = npcState.strategy.currentMode;
     const isInBeatWindow = Physics.isInBeatWindow
       ? Physics.isInBeatWindow(state)
       : false;
-    const beatCharges = p2.perfectBeatCount || 0;
-    const currentAnim = p2.anim || "";
+    const p2InZone = isInActiveDanceZone(p2, state);
+    const p1InZone = isInActiveDanceZone(p1, state);
 
-    // CRITICAL: Don't attack if already in an attack animation
-    const isInAttackAnim =
-      currentAnim.includes("r1") ||
-      currentAnim.includes("r2") ||
-      currentAnim.includes("l1") ||
-      currentAnim.includes("l2") ||
-      currentAnim.includes("jab") ||
-      currentAnim.includes("smash") ||
-      currentAnim.includes("dash") ||
-      currentAnim.includes("circle");
+    // Check Cooldowns
+    const canAttack = (type, cd = 0.3) =>
+      canUseAbility(p2, type) && (npcState.attackCooldowns[type] || 0) <= 0;
 
-    // Don't attack if busy, stunned, or in attack animation
-    if (
-      p2.attack?.type !== "none" ||
-      p2.stunT > 0 ||
-      p2.roll?.active ||
-      isInAttackAnim
-    ) {
-      if (state.debug?.devMode && isInAttackAnim && Math.random() < 0.1) {
-        console.log(
-          `[NPC Attack] BLOCKED - In attack anim: ${currentAnim}, attack.type: ${p2.attack?.type}`
-        );
+    // 1. BEAT STEAL -> Grab Priority (MUST USE GRAB)
+    if (mode === "BEAT_STEAL") {
+      // Check if in grab range (horizontal and vertical)
+      const hb1 = window.Renderer?.getHurtbox?.(p1);
+      const hb2 = window.Renderer?.getHurtbox?.(p2);
+      let inGrabRange = false;
+
+      if (hb1 && hb2) {
+        const dx = Math.abs(hb1.left + hb1.w / 2 - (hb2.left + hb2.w / 2));
+        const dy = Math.abs(hb1.top + hb1.h / 2 - (hb2.top + hb2.h / 2));
+        // If NPC (p2) is beat-charged, increase grab thresholds by 20%
+        const BEAT_CHARGE_MULT = p2?.perfectBeatCount > 0 ? 1.2 : 1.0;
+        inGrabRange =
+          dx < Math.round(120 * BEAT_CHARGE_MULT) &&
+          dy < Math.round(80 * BEAT_CHARGE_MULT);
+      } else {
+        const BEAT_CHARGE_MULT = p2?.perfectBeatCount > 0 ? 1.2 : 1.0;
+        inGrabRange =
+          distance < Math.round(120 * BEAT_CHARGE_MULT) &&
+          Math.abs(p1.pos.y - p2.pos.y) < Math.round(80 * BEAT_CHARGE_MULT);
       }
-      return inputs;
-    }
 
-    // Don't attack during beat window (unless we specifically want to disrupt?)
-    // Usually we want to dance.
-    if (isInBeatWindow) {
-      return inputs;
-    }
-
-    const mode = npcState.strategy.currentMode;
-    const attackCandidates = [];
-
-    // Helper to check if attack is available (cooldown + ability check)
-    const canAttack = (attackType, minCooldown = 0.3) => {
-      return (
-        canUseAbility(p2, attackType) &&
-        npcState.attackCooldowns[attackType] <= 0 &&
-        timeSinceLastAction > minCooldown
-      );
-    };
-
-    // --- STRATEGY-BASED ATTACK SELECTION ---
-
-    if (mode === "COMBAT_AGGRO") {
-      // Aggressive: Prioritize R1 dash, R2, Combos
-      if (distance < 180 && grounded && canAttack("r1", 0.25)) {
-        attackCandidates.push({
-          id: "r1",
-          inputs: { r1Down: true },
-          weight: 4,
-        });
+      if (inGrabRange && grounded && canAttack("grab", 0.5)) {
+        inputs.grabDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.attackCooldowns.grab = 2.0;
+        return inputs;
       }
-      if (
-        grounded &&
-        beatCharges >= 2 &&
-        distance < 250 &&
-        canAttack("r1", 0.5)
-      ) {
-        attackCandidates.push({
-          id: "double_dash",
-          inputs: { r1Down: true },
-          weight: 6,
-          doubleDash: true,
-        });
-      }
-      if (distance < 220 && grounded && canAttack("r2", 0.4)) {
-        attackCandidates.push({
-          id: "r2",
-          inputs: { r2Down: true },
-          weight: 3,
-        });
-      }
-      // Air attacks
-      if (!grounded && canAttack("r1", 0.3)) {
-        attackCandidates.push({
-          id: "air_r1",
-          inputs: { r1Down: true },
-          weight: 3,
-        });
-      }
-    } else if (mode === "ZONE_DEFENSE") {
-      // Defensive: Keep away (L1), Punish approaches (L2), quick get-off-me (R1)
-      if (distance < 120 && grounded && canAttack("r1", 0.3)) {
-        attackCandidates.push({
-          id: "r1",
-          inputs: { r1Down: true },
-          weight: 5,
-        }); // Get off me
-      }
-      // L1 only if far away AND with longer cooldown to prevent spam
-      if (distance > 200 && canAttack("l1", 2.0)) {
-        attackCandidates.push({
-          id: "l1",
-          inputs: { l1Down: true },
-          weight: 4,
-        }); // Ranged/Special harass
-      }
-      if (
-        distance > 150 &&
-        distance < 300 &&
-        canAttack("l2", 1.5) &&
-        !npcState.l2Charging
-      ) {
-        attackCandidates.push({
-          id: "l2",
-          inputs: { l2Down: true },
-          weight: 3,
-        }); // Charge attack zoning
-      }
-    } else if (mode === "RESOURCE_GATHER") {
-      // Minimal attacks, only self-defense
-      if (distance < 100 && grounded && canAttack("r1", 0.3)) {
-        attackCandidates.push({
-          id: "r1",
-          inputs: { r1Down: true },
-          weight: 5,
-        });
-      }
-    } else if (mode === "SURVIVAL") {
-      // Desperate measures (L1, maybe R1 to interrupt)
-      if (distance < 150 && canAttack("r1", 0.2)) {
-        attackCandidates.push({
-          id: "r1",
-          inputs: { r1Down: true },
-          weight: 5,
-        });
-      }
-      if (canAttack("l1", 0.5)) {
-        attackCandidates.push({
-          id: "l1",
-          inputs: { l1Down: true },
-          weight: 2,
-        });
-      }
-    }
-
-    // Fallback/General: L1 is usually good if far away (with long cooldown)
-    if (distance > 400 && canAttack("l1", 3.0)) {
-      attackCandidates.push({
-        id: "l1",
-        inputs: { l1Down: true },
-        weight: 1,
-      });
-    }
-
-    if (attackCandidates.length === 0) {
-      return inputs;
-    }
-
-    const chosen = chooseWeightedCandidate(attackCandidates);
-    if (!chosen) {
-      return inputs;
-    }
-
-    // Set cooldown based on attack type
-    const cooldownMap = {
-      r1: 0.8,
-      r2: 1.2,
-      l1: 2.5, // Longer cooldown for L1 to prevent spam
-      l2: 2.0,
-      air_r1: 0.6,
-      double_dash: 1.5,
-    };
-    const attackType =
-      chosen.id === "double_dash" || chosen.id === "air_r1" ? "r1" : chosen.id;
-    npcState.attackCooldowns[attackType] = cooldownMap[chosen.id] || 1.0;
-
-    npcState.lastAttackType = chosen.id;
-    npcState.lastActionTime = currentTime;
-    if (chosen.id === "l2") {
-      npcState.l2Charging = true;
-      npcState.l2ChargeStart = currentTime;
-    }
-
-    // Logging for attack decisions
-    if (state.debug?.devMode) {
-      console.log(
-        `[NPC Attack] Selected: ${
-          chosen.id
-        } | Mode: ${mode} | Dist: ${Math.round(distance)} | Cooldowns:`,
-        {
-          r1: npcState.attackCooldowns.r1.toFixed(2),
-          r2: npcState.attackCooldowns.r2.toFixed(2),
-          l1: npcState.attackCooldowns.l1.toFixed(2),
-          l2: npcState.attackCooldowns.l2.toFixed(2),
-          anim: currentAnim,
-          attackType: p2.attack?.type,
+      // If can't grab, try to close distance (but check dash safety and edge/offzone)
+      if (distance > 120 && canAttack("r1", 0.3)) {
+        const dashDir = p2.pos.x < p1.pos.x ? 1 : -1;
+        if (
+          !isNearEdgeOrOffzone(p2, state, 120) &&
+          isDashAttackSafe(p2, dashDir, state, 80)
+        ) {
+          inputs.r1Down = true;
+          npcState.lastActionTime = currentTime;
+          return inputs;
         }
-      );
+      }
     }
 
-    return { ...chosen.inputs, doubleDash: !!chosen.doubleDash };
+    // 2. TACTICAL DANCE COMBAT (Both in Zone) -> Mixed Bag
+    if (mode === "TACTICAL_DANCE_COMBAT") {
+      const roll = Math.random();
+
+      // Distance-based dance priority: further away = higher dance priority
+      // Distance 0-100: 0.5 dance chance, 100-200: 0.7, 200+: 0.9
+      const distanceBasedDanceChance =
+        distance < 100 ? 0.5 : distance < 200 ? 0.7 : 0.9;
+      const danceRoll = Math.random();
+
+      // Check dance first if distance-based chance allows (increased priority)
+      if (danceRoll < distanceBasedDanceChance && isInBeatWindow && p2InZone) {
+        inputs.danceDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+
+      // Also dance outside beat window if far enough (distance > 150)
+      if (distance > 150 && p2InZone && danceRoll < 0.4) {
+        inputs.danceDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+
+      // Varied attacks, but check dash safety for R1 and block if near edge/offzone
+      if (roll < 0.3 && canAttack("r1")) {
+        const dashDir = p2.facing >= 0 ? 1 : -1;
+        if (
+          !isNearEdgeOrOffzone(p2, state, 120) &&
+          isDashAttackSafe(p2, dashDir, state, 80)
+        ) {
+          inputs.r1Down = true;
+        }
+      } else if (roll < 0.5 && canAttack("r2")) {
+        // Block R2 dash if near edge or offzone
+        if (!isNearEdgeOrOffzone(p2, state, 120)) {
+          inputs.r2Down = true;
+        }
+      } else if (roll < 0.6 && canAttack("l1")) {
+        inputs.l1Down = true;
+      }
+
+      if (inputs.r1Down || inputs.r2Down || inputs.l1Down || inputs.danceDown) {
+        npcState.lastActionTime = currentTime;
+        return inputs;
+      }
+    }
+
+    // 3. COMBAT DEFENSE -> Protect self
+    if (mode === "COMBAT_DEFENSE") {
+      if (distance < 100 && canAttack("r1")) {
+        const dashDir = p2.facing >= 0 ? 1 : -1;
+        // Block R1 dash if near edge or offzone
+        if (
+          !isNearEdgeOrOffzone(p2, state, 120) &&
+          isDashAttackSafe(p2, dashDir, state, 80)
+        ) {
+          inputs.r1Down = true; // Get off me
+        }
+      } else if (distance < 180 && canAttack("r2")) {
+        // Block R2 dash if near edge or offzone
+        if (!isNearEdgeOrOffzone(p2, state, 120)) {
+          inputs.r2Down = true; // Punish
+        }
+      }
+
+      if (inputs.r1Down || inputs.r2Down) {
+        npcState.lastActionTime = currentTime;
+        return inputs;
+      }
+    }
+
+    // 4. DANCE FOCUS -> MUST DANCE (Primary Goal)
+    if (mode === "DANCE_FOCUS") {
+      // Always dance when in beat window
+      if (isInBeatWindow) {
+        inputs.danceDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+      // Also dance frequently outside beat window if in zone (to maintain position)
+      // Distance-based: further away = higher chance (0.5 at close, 0.8 at far)
+      const distanceBasedDanceChance = Math.min(
+        0.8,
+        0.5 + (distance / 400) * 0.3
+      );
+      if (
+        p2InZone &&
+        Math.random() < distanceBasedDanceChance &&
+        currentTime - npcState.lastDanceTime > 0.3
+      ) {
+        inputs.danceDown = true;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+    }
+
+    // 5. ZONE_SEEKER -> Can dance while moving to zone if in beat window
+    // Distance-based: further away = higher priority to dance
+    if (mode === "ZONE_SEEKER" && p2InZone) {
+      if (isInBeatWindow) {
+        // Always dance in beat window, but higher priority when far
+        inputs.danceDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+      // Also dance outside beat window if far enough away (distance > 150)
+      // Increased chance: 0.4 -> 0.6
+      if (distance > 150 && Math.random() < 0.6) {
+        inputs.danceDown = true;
+        npcState.lastActionTime = currentTime;
+        npcState.lastDanceTime = currentTime;
+        return inputs;
+      }
+    }
+
+    return inputs;
   }
 
   // Phase 3: Special Attack Decision
@@ -1213,14 +924,6 @@ window.NPCController = (() => {
       !canUseAbility(p2, "r1") ||
       currentTime - npcState.lastActionTime < 0.3
     ) {
-      return inputs;
-    }
-
-    // R1 Circle Attack (close range, grounded)
-    if (distance < 100 && grounded && Math.random() < 0.3) {
-      inputs.r1CircleDown = true;
-      npcState.lastAttackType = "r1_circle";
-      npcState.lastActionTime = currentTime;
       return inputs;
     }
 
@@ -1238,27 +941,20 @@ window.NPCController = (() => {
       return inputs;
     }
 
-    // R1 Dash Attack (double-tap detection)
+    // R1 Dash Attack (double-tap detection) - WITH SAFETY CHECK
     if (
       distance < 150 &&
       grounded &&
       currentTime - npcState.lastR1Time < 0.2 &&
       npcState.lastR1Time > 0
     ) {
-      let nearEdge = false;
-      if (state?.groundData || state?.semisolidData) {
-        const dashDir = p2.facing >= 0 ? 1 : -1;
-        const edgeInfo = getEdgeInfo(p2, dashDir, state, {
-          lookAhead: 48,
-          dropDistance: 64,
-          maxLandingDistance: 220,
-        });
-        nearEdge =
-          edgeInfo.isGap &&
-          (edgeInfo.landingDistance === null || edgeInfo.landingDistance < 120);
-      }
+      const dashDir = p2.facing >= 0 ? 1 : -1;
 
-      if (!nearEdge) {
+      // CRITICAL: Check if dash is safe and not near edge/offzone before executing
+      if (
+        !isNearEdgeOrOffzone(p2, state, 120) &&
+        isDashAttackSafe(p2, dashDir, state, 80)
+      ) {
         inputs.r1Down = true;
         npcState.lastAttackType = "r1_dash";
         npcState.lastActionTime = currentTime;
@@ -1278,79 +974,20 @@ window.NPCController = (() => {
     return inputs;
   }
 
-  // Phase 4: Combo Detection
-  function isInComboWindow(p2, state) {
-    if (!p2.attack || p2.attack.type === "none") return false;
-
-    // Check if in combo state
-    if (p2.attack.comboStep && p2.attack.comboStep > 0) {
-      return true;
-    }
-
-    // Check combo window from character config
-    if (window.CharacterCatalog && window.CharacterCatalog.getAttackConfig) {
-      const charKey = p2.charName?.toLowerCase();
-      const cfg = window.CharacterCatalog.getAttackConfig(charKey, state);
-      if (cfg && cfg.r1 && cfg.r1.comboWindowStartFrame) {
-        // Check if in combo window based on frame index
-        const frameIndex = p2.frameIndex || 0;
-        const comboWindowStart = cfg.r1.comboWindowStartFrame || 0;
-        if (
-          frameIndex >= comboWindowStart &&
-          frameIndex < comboWindowStart + 10
-        ) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  // Phase 5: Ultimate Decision (kept for backwards compatibility, but now handled directly in getInputs)
-  // Ultimate is now always used when full (handled in Priority 2 of getInputs)
-  function shouldUseUltimate(p1, p2, state) {
-    // This function is now deprecated - ultimate is handled directly in getInputs
-    // when canUseUltimate returns true
-    return false;
-  }
-
-  // Improved attack detection - check for different attack phases
   function detectIncomingAttack(p1, p2) {
     if (!p1.attack || p1.attack.type === "none") return null;
-
     const distance = Math.abs(p1.pos.x - p2.pos.x);
-    const attackInfo = {
+    return {
       type: p1.attack.type,
       phase: p1.attack.phase,
       distance: distance,
       direction: p1.facing,
-      isClose: distance < 120, // Close range threshold
-      isFar: distance > 200, // Far range threshold
+      isClose: distance < 120,
     };
-
-    return attackInfo;
   }
 
-  // Smart dodge direction based on attack type and position
   function getDodgeDirection(attackInfo, p1, p2) {
-    if (!attackInfo) return 0;
-
-    // For close attacks, dodge away from attacker
-    if (attackInfo.isClose) {
-      return p2.pos.x < p1.pos.x ? -1 : 1;
-    }
-
-    // For ranged attacks, dodge towards attacker to close distance
-    if (
-      attackInfo.isFar &&
-      (attackInfo.type.includes("r1") || attackInfo.type.includes("l1"))
-    ) {
-      return p2.pos.x < p1.pos.x ? 1 : -1;
-    }
-
-    // Default: dodge away
-    return p2.pos.x < p1.pos.x ? -1 : 1;
+    return p2.pos.x < p1.pos.x ? -1 : 1; // Simple dodge away
   }
 
   // Generate fake inputs for Player 2
@@ -1364,81 +1001,18 @@ window.NPCController = (() => {
     if (!p2 || !p1) return null;
 
     const currentTime = performance.now() * 0.001;
-    const dt = 1 / 60; // Assume 60fps
+    const dt = 1 / 60;
 
     // --- Update Strategy ---
     updateStrategy(p1, p2, state, currentTime);
 
     const distance = Math.abs(p1.pos.x - p2.pos.x);
     const grounded = !!p2.grounded;
-    const danceSpotGuard = getDanceSpotGuardAxis(p2, state);
-    const beatChargeOpportunity = shouldCollectBeatCharges(p2, distance, state);
 
-    if (grounded) {
-      npcState.doubleJumpUsed = false;
-      npcState.doubleJumpPlanned = false;
-      npcState.doubleJumpPlanLanding = null;
-      npcState.doubleJumpPlanDirection = p2.facing >= 0 ? 1 : -1;
-      npcState.doubleJumpPlanStartX = p2.pos.x;
-      npcState.doubleJumpPlanTime = 0;
-    }
+    // Jump state resets automatically when grounded (jumpsLeft is reset by physics system)
 
-    const opponentAttack = p1.attack;
-    const opponentType = opponentAttack?.type ?? "none";
-    const opponentPhase = opponentAttack?.phase ?? "none";
-
-    if (!opponentAttack || opponentType === "none") {
-      if (npcState.lastTrackedAttackRef !== null) {
-        npcState.lastTrackedAttackRef = null;
-      }
-      npcState.lastOpponentAttackPhase = "none";
-      npcState.dodgeAttemptedForCurrentAttack = false;
-      npcState.shouldDodgeThisAttack = false;
-    } else {
-      const attackRefChanged = npcState.lastTrackedAttackRef !== opponentAttack;
-      const previousPhase = npcState.lastOpponentAttackPhase ?? "none";
-      const newAttackDetected =
-        attackRefChanged ||
-        previousPhase === "none" ||
-        previousPhase === undefined;
-
-      if (newAttackDetected) {
-        npcState.lastTrackedAttackRef = opponentAttack;
-        npcState.dodgeAttemptedForCurrentAttack = false;
-        npcState.shouldDodgeThisAttack = false;
-        npcState.incomingAttackCounter =
-          (npcState.incomingAttackCounter || 0) + 1;
-
-        if (!npcState.nextDodgeAttempt || npcState.nextDodgeAttempt < 1) {
-          npcState.nextDodgeAttempt = getRandomDodgeInterval();
-        }
-
-        if (npcState.incomingAttackCounter >= npcState.nextDodgeAttempt) {
-          npcState.shouldDodgeThisAttack = true;
-          npcState.incomingAttackCounter = 0;
-          npcState.nextDodgeAttempt = getRandomDodgeInterval();
-        }
-      }
-
-      npcState.lastOpponentAttackPhase = opponentPhase;
-    }
-
-    // Update dodge cooldown
-    if (dodgeCooldown > 0) {
-      dodgeCooldown -= dt;
-    }
-
-    // Update combo step tracking
-    if (p2.attack && p2.attack.comboStep) {
-      npcState.comboStep = p2.attack.comboStep;
-    } else if (p2.attack?.type === "none") {
-      npcState.comboStep = 0;
-    }
-
-    // Track last hit time (if p2 successfully hit p1)
-    if (p2.attack?.didHitThisFrame) {
-      npcState.lastHitTime = currentTime;
-    }
+    // Update Cooldowns
+    if (dodgeCooldown > 0) dodgeCooldown -= dt;
 
     const inputs = {
       axis: 0,
@@ -1458,7 +1032,7 @@ window.NPCController = (() => {
       r2Down: false,
       rollDown: false,
       downHeld: false,
-      grabDown: false, // Formerly danceBattleDown
+      grabDown: false,
       ultiDown: false,
       r1CircleDown: false,
       l3UpR1Down: false,
@@ -1467,9 +1041,8 @@ window.NPCController = (() => {
 
     applyPendingDoubleDash(inputs, p2, currentTime);
 
-    // Phase 6: Recovery handling - wait if stunned or recovering
+    // Phase 6: Recovery handling
     if ((p2.stunT && p2.stunT > 0) || p2.isInvincible) {
-      // Only allow movement during recovery
       const movement = decideMovement(
         p1,
         p2,
@@ -1478,366 +1051,28 @@ window.NPCController = (() => {
         state,
         currentTime
       );
-      if (danceSpotGuard.weight > 0.25 && Math.abs(danceSpotGuard.axis) > 0.1) {
-        movement.axis = danceSpotGuard.axis;
-      }
       Object.assign(inputs, movement);
       return finalizeInputs(inputs, currentTime);
     }
 
-    // Priority 1: DODGE LOGIC (if incoming attack detected)
+    // PRIORITY 1: DODGE
+    // Check for incoming attacks and dodge if necessary
     const attackInfo = detectIncomingAttack(p1, p2);
-    const canDodge =
-      dodgeCooldown <= 0 && !p2.roll?.active && !p2.shield?.active;
-
-    let shouldDodge = false;
-    let dodgeDirectionOverride = null;
-
-    if (attackInfo && canDodge) {
-      // Different dodge strategies based on attack type
-      switch (attackInfo.type) {
-        case "r1":
-        case "r1_combo":
-        case "r1_combo_active": {
-          // Quick attacks - dodge during startup/active, even at mid range occasionally
-          const threatPhase =
-            attackInfo.phase === "active" || attackInfo.phase === "startup";
-          if (threatPhase) {
-            shouldDodge =
-              attackInfo.distance < 150 ||
-              (attackInfo.distance < 180 && Math.random() < 0.2);
-          }
-          break;
-        }
-
-        case "r2":
-        case "r2_combo": {
-          // Heavy attacks - give more buffer; dodge during startup or active
-          const threatPhase =
-            attackInfo.phase === "active" || attackInfo.phase === "startup";
-          if (threatPhase) {
-            shouldDodge =
-              attackInfo.distance < 170 ||
-              (attackInfo.distance < 210 && Math.random() < 0.2);
-          }
-          break;
-        }
-
-        case "l1":
-        case "l1_ranged_grab": {
-          // Ranged attacks - dodge when close or to close space with some randomness
-          if (attackInfo.phase === "active") {
-            shouldDodge = attackInfo.distance < 170;
-          }
-          break;
-        }
-
-        case "l2": {
-          // Charged heavies - dodge as soon as they go active, even mid range
-          if (attackInfo.phase === "active" || attackInfo.phase === "startup") {
-            shouldDodge =
-              attackInfo.distance < 180 ||
-              (attackInfo.distance < 220 && Math.random() < 0.2);
-          }
-          break;
-        }
-
-        default:
-          // Generic dodge for unknown attacks
-          if (attackInfo.phase === "active") {
-            shouldDodge = attackInfo.distance < 180 && attackInfo.isClose;
-          }
-      }
-    }
-
-    const attemptThisAttack =
-      attackInfo &&
-      npcState.shouldDodgeThisAttack &&
-      !npcState.dodgeAttemptedForCurrentAttack;
-
-    if (attemptThisAttack && canDodge) {
-      if (!shouldDodge) {
-        const phaseName = attackInfo.phase;
-        if (
-          phaseName === "start" ||
-          phaseName === "startup" ||
-          phaseName === "charge" ||
-          phaseName === "active"
-        ) {
-          shouldDodge = true;
-        }
-      }
-    } else {
-      shouldDodge = false;
-    }
-
-    shouldDodge = shouldDodge && attemptThisAttack && canDodge;
-
-    if (shouldDodge) {
-      let axisDir =
-        (dodgeDirectionOverride ?? getDodgeDirection(attackInfo, p1, p2)) ||
-        (p2.pos.x < p1.pos.x ? -1 : 1);
-
-      if (state?.groundData || state?.semisolidData) {
-        const edgeInfo = getEdgeInfo(p2, axisDir, state, {
-          lookAhead: 32,
-          dropDistance: 60,
-        });
-        if (edgeInfo.isGap) {
-          const opposite = -axisDir;
-          const oppositeSafe = getEdgeInfo(p2, opposite, state, {
-            lookAhead: 28,
-            dropDistance: 60,
-          });
-          if (!oppositeSafe.isGap) {
-            axisDir = opposite;
-          } else {
-            axisDir = 0;
-          }
-        }
-      }
-
-      if (axisDir === 0) {
-        axisDir = p2.pos.x < p1.pos.x ? -1 : 1;
-      }
-
-      inputs.rollDown = true;
-      inputs.axis = axisDir;
-      dodgeCooldown = 1.2; // 1.2s cooldown between dodges
-      lastRollTime = currentTime;
-      npcState.dodgeAttemptedForCurrentAttack = true;
-      npcState.shouldDodgeThisAttack = false;
-      return finalizeInputs(inputs, currentTime); // Dodge takes priority, return immediately
-    }
-
-    // Priority 2: ULTIMATE (if ready - ALWAYS use when full, highest priority!)
-    // Check if ultimeter is full first (most important)
-    if (window.UltimeterManager && window.UltimeterManager.canUseUltimate) {
-      // Prevent NPC from using ultimate automatically during Tutorial Part 2
-      const inTutorialPart2 =
-        state.tutorial?.active && state.tutorial.part === 2;
-      const safeUlt = canAttemptUltimateSafely(p2, p1, state);
-
-      if (
-        window.UltimeterManager.canUseUltimate(p2) &&
-        canUseAbility(p2, "ultimate") &&
-        safeUlt &&
-        !inTutorialPart2
-      ) {
-        // Always use ultimate when full (except during tutorial part 2)
-        inputs.ultiDown = true;
-        npcState.lastActionTime = currentTime;
-        npcState.lastDecision = "ULTIMATE";
-        return finalizeInputs(inputs, currentTime); // Ultimate takes highest priority when full
-      }
-    }
-
-    // Priority 2.1: HP ULTIMATE ACTIVE - Full Aggro Mode (ignore zone, chase player)
-    const charKey = (p2.charName || "").toLowerCase();
-    if (charKey === "hp" && isHPUltimateActive(p2)) {
-      // Full aggressive movement towards player, ignore zone behavior
-      const dx = p1.pos.x - p2.pos.x;
-      inputs.axis = dx > 0 ? 1.0 : -1.0;
-      // Try to jump if player is above
-      if (
-        p1.pos.y < p2.pos.y - 40 &&
-        grounded &&
-        canAttemptJump(p2, grounded, currentTime)
-      ) {
-        inputs.jump = true;
-        inputs.jumpPressed = true;
-        inputs.jumpHeld = true;
-      }
-      // Attack aggressively if in range
-      if (
-        distance < 200 &&
-        p2.attack?.type === "none" &&
-        canUseAbility(p2, "r1")
-      ) {
-        inputs.r1Down = true;
-      }
-      npcState.lastDecision = "HP_ULTI_AGGRO";
-      return finalizeInputs(inputs, currentTime);
-    }
-
-    // Priority 2.25: ANTI-CHARGE GRAB (steal opponent's beat charges immediately)
-    // If the opponent has accumulated 3+ perfect beat charges, attempt a close-range grab
-    // Conditions: grounded, not performing another action, in melee range, grab available
-    const opponentBeatCharges = p1.perfectBeatCount || 0;
-    if (
-      opponentBeatCharges >= 3 &&
-      p2.attack?.type === "none" &&
-      !p2.roll?.active &&
-      grounded &&
-      canUseAbility(p2, "grab") &&
-      currentTime - (npcState.lastActionTime || 0) > 0.3
-    ) {
-      // Approximate melee grab reach: horizontal < ~120, vertical overlap small
-      const dx = Math.abs(p1.pos.x - p2.pos.x);
-      const dy = Math.abs(p1.pos.y - p2.pos.y);
-      const inMeleeRange = dx < 120 && dy < 80;
-      if (inMeleeRange) {
-        inputs.grabDown = true;
-        npcState.lastActionTime = currentTime;
-        npcState.lastDecision = "ANTI_CHARGE_GRAB";
+    if (attackInfo && dodgeCooldown <= 0 && !p2.roll?.active) {
+      const isDangerous =
+        attackInfo.phase === "active" || attackInfo.phase === "release";
+      if (isDangerous && attackInfo.distance < 180) {
+        inputs.rollDown = true;
+        inputs.axis = getDodgeDirection(attackInfo, p1, p2);
+        dodgeCooldown = 1.0;
         return finalizeInputs(inputs, currentTime);
       }
     }
 
-    // Priority 2.5: BEAT CHARGE COLLECTION (if in zone and not threatened)
-    const inZone = isInActiveDanceZone(p2, state);
-    const isThreatened =
-      isPlayerThreatening(p1, p2, distance, state) ||
-      distance < PROX_THREAT_DISTANCE; // Distance alone can threaten
-    const isInBeatWindow = Physics.isInBeatWindow
-      ? Physics.isInBeatWindow(state)
-      : false;
-
-    // If in zone, not threatened, and in beat window -> collect charges
-    if (
-      inZone &&
-      !isThreatened &&
-      isInBeatWindow &&
-      p2.attack?.type === "none" &&
-      !p2.roll?.active &&
-      (p2.perfectBeatCount || 0) < 9
-    ) {
-      inputs.danceDown = true;
-      // Still allow movement to stay in zone center, but prioritize dancing
-      // Don't return - let movement blend with dance
-    }
-
-    // Priority 3: DANCE MOVES (only during active dance battle - reduced frequency)
-    // NPC should only REACT to dance battles, not trigger them
-    if (state.danceBattle?.active) {
-      const isInBeatWindow = Physics.isInBeatWindow
-        ? Physics.isInBeatWindow(state)
-        : false;
-      const beatQuality = Physics.getBeatWindowQuality
-        ? Physics.getBeatWindowQuality(state)
-        : null;
-
-      // Reduced dance frequency - only dance occasionally during dance battle
-      if (isInBeatWindow && (!p2.attack || p2.attack.type === "none")) {
-        const isDancing = p2.anim?.includes("dance");
-        if (!isDancing && !p2.roll?.active) {
-          // Lower chance - only dance 20% of time (reduced from higher values)
-          const danceChance = beatQuality === "perfect" ? 0.3 : 0.15;
-          if (Math.random() < danceChance) {
-            inputs.danceDown = true;
-            npcState.lastDanceTime = currentTime;
-            return finalizeInputs(inputs, currentTime);
-          }
-        }
-      }
-    }
-
-    // Handle L2 Charge state (if currently charging)
-    if (npcState.l2Charging) {
-      if (p2.attack?.type === "l2" || p2.attack?.type === "l2_ranged") {
-        // Keep holding L2 during charge
-        inputs.l2Held = true;
-        // Release after 0.5-1.0 seconds of charge (randomized)
-        const chargeDuration = currentTime - npcState.l2ChargeStart;
-        const maxChargeTime = 0.6 + Math.random() * 0.4; // 0.6-1.0 seconds
-        if (chargeDuration > maxChargeTime || p2.attack.phase === "release") {
-          inputs.l2Up = true;
-          npcState.l2Charging = false;
-          npcState.l2ChargeStart = 0;
-        }
-      } else {
-        // Attack ended, reset charging state
-        npcState.l2Charging = false;
-        npcState.l2ChargeStart = 0;
-      }
-    }
-    // Tutorial deterministic beat-charge collection (Part 2: beat charge task)
-    if (
-      state.tutorial?.active &&
-      state.tutorial.part === 2 &&
-      state.tutorial.part2?.currentStep === "beat_charge_task"
-    ) {
-      // If NPC hasn't reached the desired perfect-beat count, attempt to dance
-      const target = npcState.beatChargeTarget || 4;
-      const currentCharges = p2.perfectBeatCount || 0;
-      const inBeatWindow = Physics.isInBeatWindow
-        ? Physics.isInBeatWindow(state)
-        : false;
-
-      // If we haven't reached target, dance on beat windows deterministically
-      if (!npcState.beatAggressiveMode && currentCharges < target) {
-        if (
-          inBeatWindow &&
-          currentTime - (npcState.lastBeatDanceAttempt || 0) > 0.12 &&
-          (!p2.attack || p2.attack.type === "none") &&
-          !p2.roll?.active
-        ) {
-          inputs.danceDown = true;
-          npcState.lastBeatDanceAttempt = currentTime;
-          return finalizeInputs(inputs, currentTime);
-        }
-        // not in beat window or cooldown, fall through to movement/other logic
-      }
-
-      // If we've reached the target, enter aggressive mode: spam attacks until hit or grabbed
-      if (!npcState.beatAggressiveMode && currentCharges >= target) {
-        npcState.beatAggressiveMode = true;
-      }
-
-      if (npcState.beatAggressiveMode) {
-        // If player grabbed NPC or charges were stolen, stop aggressive mode
-        if (p2.isGrabbed || (p2.perfectBeatCount || 0) < target) {
-          npcState.beatAggressiveMode = false;
-        } else {
-          // Try to attack repeatedly until we hit the player (or get grabbed)
-          if (p2.attack?.type === "none" && canUseAbility(p2, "r1")) {
-            inputs.r1Down = true;
-            npcState.lastActionTime = currentTime;
-            return finalizeInputs(inputs, currentTime);
-          }
-        }
-      }
-    }
-
-    // Priority 4: ATTACKS (only if threatened OR not in zone)
-    // In zone + not threatened = passive (collect beats)
-    // Outside zone OR threatened = aggressive
-    const isDancing = p2.anim?.includes("dance");
-    const shouldBeAggressive = !inZone || isThreatened;
-
-    if (
-      shouldBeAggressive &&
-      p2.attack?.type === "none" &&
-      !p2.roll?.active &&
-      !p2.shield?.active &&
-      !npcState.l2Charging &&
-      !isDancing // Don't attack while dancing
-    ) {
-      // Phase 4: Check for combo followup first
-      if (isInComboWindow(p2, state)) {
-        // Continue combo
-        if (npcState.lastAttackType === "r1" && canUseAbility(p2, "r1")) {
-          inputs.r1Down = true;
-          npcState.lastActionTime = currentTime;
-          return finalizeInputs(inputs, currentTime);
-        }
-      }
-
-      // Phase 3: Try special attacks first (higher priority)
-      const specialAttack = decideSpecialAttack(
-        p1,
-        p2,
-        distance,
-        grounded,
-        state
-      );
-      if (Object.keys(specialAttack).length > 0) {
-        Object.assign(inputs, specialAttack);
-        return finalizeInputs(inputs, currentTime);
-      }
-
-      // Phase 2: Basic attacks
-      const attack = decideAttack(
+    // PRIORITY 2: ULTIMATE (If Mode is ULTIMATE_SEEK)
+    if (npcState.strategy.currentMode === "ULTIMATE_SEEK") {
+      // Move to range first? Or just fire? Assuming global range or chasing.
+      const movement = decideMovement(
         p1,
         p2,
         distance,
@@ -1845,24 +1080,133 @@ window.NPCController = (() => {
         state,
         currentTime
       );
-      if (Object.keys(attack).length > 0) {
-        const doubleDashFlag = attack.doubleDash;
-        const attackInputs = { ...attack };
-        delete attackInputs.doubleDash;
-        Object.assign(inputs, attackInputs);
-        if (doubleDashFlag) {
-          queueDoubleDashTap(currentTime);
+      Object.assign(inputs, movement);
+
+      // Fire when ready (simplified safe check)
+      if (canAttemptUltimateSafely(p2, p1, state)) {
+        inputs.ultiDown = true;
+      }
+      return finalizeInputs(inputs, currentTime);
+    }
+
+    // PRIORITY 3: DANCE (If in zone and beat window) - HIGH PRIORITY
+    // Distance-based priority: further away = higher dance priority
+    const p2InZone = isInActiveDanceZone(p2, state);
+    const isInBeatWindow = Physics.isInBeatWindow
+      ? Physics.isInBeatWindow(state)
+      : false;
+
+    // Calculate distance-based dance priority
+    // At distance 0: base priority, at distance 300+: 2x priority
+    const distanceMultiplier = 1.0 + Math.min(1.0, distance / 300);
+    const shouldPrioritizeDance = distance > 100 && distanceMultiplier > 1.2;
+
+    // CRITICAL FIX: Dance should interrupt attacks if in beat window
+    // If in zone and beat window, ALWAYS prioritize dancing (especially when far)
+    if (p2InZone && isInBeatWindow && !p2.roll?.active) {
+      // Higher priority when far away, but always dance in beat window
+      if (shouldPrioritizeDance || Math.random() < 0.95) {
+        // Cancel current attack to dance
+        if (p2.attack && p2.attack.type !== "none") {
+          p2.attack = { type: "none", phase: "none" };
         }
-        // Track R1 for dash detection
-        if (attackInputs.r1Down) {
-          npcState.lastR1Time = currentTime;
-        }
+        inputs.danceDown = true;
+        npcState.lastDanceTime = currentTime;
+        // Still allow movement to stay centered
+        const movement = decideMovement(
+          p1,
+          p2,
+          distance,
+          grounded,
+          state,
+          currentTime
+        );
+        Object.assign(inputs, movement);
         return finalizeInputs(inputs, currentTime);
       }
     }
 
-    // Priority 5: MOVEMENT (always active if not in attack/locked)
-    // decideMovement now handles zone navigation internally with higher priority
+    // Also dance outside beat window if far enough away (distance > 150)
+    // Increased chance: 0.2 -> 0.4 base chance
+    if (
+      p2InZone &&
+      !isInBeatWindow &&
+      distance > 150 &&
+      !p2.roll?.active &&
+      currentTime - npcState.lastDanceTime > 0.3 &&
+      Math.random() < Math.min(0.6, 0.4 * distanceMultiplier)
+    ) {
+      // Cancel current attack to dance if far enough
+      if (distance > 200 && p2.attack && p2.attack.type !== "none") {
+        p2.attack = { type: "none", phase: "none" };
+      }
+      inputs.danceDown = true;
+      npcState.lastDanceTime = currentTime;
+      const movement = decideMovement(
+        p1,
+        p2,
+        distance,
+        grounded,
+        state,
+        currentTime
+      );
+      Object.assign(inputs, movement);
+      return finalizeInputs(inputs, currentTime);
+    }
+
+    // PRIORITY 4: ATTACKS (Based on Mode)
+    // Only if not rolling/dodging
+    if (!p2.roll?.active) {
+      const attackInputs = decideAttack(
+        p1,
+        p2,
+        distance,
+        grounded,
+        state,
+        currentTime
+      );
+      if (
+        Object.keys(attackInputs).length > 0 &&
+        (attackInputs.r1Down ||
+          attackInputs.r2Down ||
+          attackInputs.grabDown ||
+          attackInputs.danceDown ||
+          attackInputs.l1Down)
+      ) {
+        Object.assign(inputs, attackInputs);
+        // Blend movement if not in attack
+        if (
+          !attackInputs.r1Down &&
+          !attackInputs.r2Down &&
+          !attackInputs.grabDown
+        ) {
+          const movement = decideMovement(
+            p1,
+            p2,
+            distance,
+            grounded,
+            state,
+            currentTime
+          );
+          Object.assign(inputs, movement);
+        }
+        return finalizeInputs(inputs, currentTime);
+      }
+
+      const specialInputs = decideSpecialAttack(
+        p1,
+        p2,
+        distance,
+        grounded,
+        state
+      );
+      if (Object.keys(specialInputs).length > 0) {
+        Object.assign(inputs, specialInputs);
+        return finalizeInputs(inputs, currentTime);
+      }
+    }
+
+    // PRIORITY 4: MOVEMENT (Always active fallback)
     const movement = decideMovement(
       p1,
       p2,
@@ -1871,64 +1215,16 @@ window.NPCController = (() => {
       state,
       currentTime
     );
-
     Object.assign(inputs, movement);
 
-    // Logging for Behavior Tracking
+    // Log Debug
     if (state.debug?.devMode && Math.random() < 0.02) {
-      const inZone = isInActiveDanceZone(p2, state);
-      const currentAnim = p2.anim || "";
-      const isInAttackAnim =
-        currentAnim.includes("r1") ||
-        currentAnim.includes("r2") ||
-        currentAnim.includes("l1") ||
-        currentAnim.includes("l2") ||
-        currentAnim.includes("jab") ||
-        currentAnim.includes("smash") ||
-        currentAnim.includes("dash");
-
-      const decision = inputs.rollDown
-        ? "DODGE"
-        : inputs.ultiDown
-        ? "ULTIMATE"
-        : inputs.grabDown
-        ? "GRAB"
-        : inputs.r1Down || inputs.r2Down || inputs.l1Down || inputs.l2Down
-        ? `ATTACK_${npcState.lastAttackType}`
-        : inputs.danceDown
-        ? "CHARGE_BEAT"
-        : Math.abs(inputs.axis) > 0
-        ? `MOVE_${inputs.axis > 0 ? "RIGHT" : "LEFT"}`
-        : "IDLE";
-
-      const zoneDy = danceSpotGuard.dy ? Math.round(danceSpotGuard.dy) : 0;
-      const verticalAction =
-        inputs.jump || inputs.jumpPressed ? "JUMP" : "GROUND";
-
       console.log(
-        `[NPC] Mode: ${npcState.strategy.currentMode} | State: ${decision} | ${verticalAction}`,
-        {
-          aggro: npcState.playerProfile.aggressionScore.toFixed(2),
-          dist: Math.round(distance),
-          charges: p2.perfectBeatCount || 0,
-          inZone: inZone ? "YES" : "NO",
-          guard: danceSpotGuard.weight.toFixed(2),
-          zoneDy: zoneDy,
-          needsVertical: danceSpotGuard.needsVertical ? "YES" : "NO",
-          anim: currentAnim.substring(0, 20),
-          inAttackAnim: isInAttackAnim ? "YES" : "NO",
-          attackType: p2.attack?.type || "none",
-          grounded: grounded ? "YES" : "NO",
-          cooldowns: {
-            r1: npcState.attackCooldowns.r1.toFixed(1),
-            l1: npcState.attackCooldowns.l1.toFixed(1),
-          },
-        }
+        `[NPC] Mode: ${npcState.strategy.currentMode} | Dist: ${Math.round(
+          distance
+        )} | InZone: ${isInActiveDanceZone(p2, state)}`
       );
     }
-
-    // REMOVED: NPC no longer triggers dance battles - only reacts to them
-    // Dance battle logic is now only in Priority 3 (during active dance battle)
 
     return finalizeInputs(inputs, currentTime);
   }

@@ -1360,7 +1360,7 @@ window.AttackCatalog = (() => {
       activeFrame: 2, // Detection starts at frame 2 (after 2 windup frames)
       clankable: false, // Grabs usually don't clank with hits, they get interrupted
       grab: {
-        detectFrames: 2, // How many frames detection lasts
+        detectFrames: 3, // How many frames detection lasts
         liftFrame: 3, // Relative to active start (Frame 4 of active = index 3)
         liftHeight: 80,
         throwFrame: 7, // End of active phase
@@ -1377,7 +1377,7 @@ window.AttackCatalog = (() => {
       activeFrame: 2,
       clankable: false,
       grab: {
-        detectFrames: 2,
+        detectFrames: 3,
         liftFrame: 1,
         liftHeight: 20,
         throwFrame: 7,
@@ -1394,7 +1394,7 @@ window.AttackCatalog = (() => {
       activeFrame: 2,
       clankable: false,
       grab: {
-        detectFrames: 2,
+        detectFrames: 3,
         throwFrame: 7,
         rotateVictim: true,
         jumpSlam: true,
@@ -1411,7 +1411,7 @@ window.AttackCatalog = (() => {
       activeFrame: 2,
       clankable: false,
       grab: {
-        detectFrames: 2,
+        detectFrames: 3,
         liftFrame: 3,
         liftHeight: 80,
         throwFrame: 7,

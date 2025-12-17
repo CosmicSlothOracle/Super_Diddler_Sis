@@ -432,7 +432,7 @@ window.TutorialSystem = (() => {
   }
 
   /**
-   * Update instruction panel with current step info
+   * Update instruction panel with current step info (legacy - now uses modal system)
    */
   function updateInstructionPanel(state) {
     if (!state.tutorial || !state.tutorial.active) return;
@@ -442,115 +442,95 @@ window.TutorialSystem = (() => {
       return;
     }
 
-    const step = state.tutorial.step;
-    const stepData = state.tutorial.stepData;
-    const instruction = getInstructionText(step, stepData, state);
-
-    state.tutorial.instructionPanel.currentText = instruction.main;
-    state.tutorial.instructionPanel.detailText = instruction.detail;
-    state.tutorial.instructionPanel.progressText = instruction.progress;
-    state.tutorial.instructionPanel.highlightElements =
-      instruction.highlightElements;
+    // Legacy step-based system - could show modal messages here if needed
+    // For now, instruction panel is deprecated in favor of unified modal
   }
 
   // Part 1 Modal lines (Beatmatch Basics)
   const PART_ONE_MODAL_INTRO = [
-    "La-di-da. Look who finally mailed. Ready to work that little booty just to make a dicey impression. Feel free to dance as flamboyant as you desire, but watch out for any diddlers that might be creeping up on you. For now, your only goal is to reach the music on top of the stage.",
+    "Finally here, you are. **Work that booty**, you must, yes yes.\n\nDance flamboyantly, you may... but *watchful*, you must remain. **Creeping, the diddlers are.** Always watching.\n\nYour goal: reach the **music at the top** of stage. Simple it seems... but *fail*, you might.",
   ];
 
   // Part 2 Modal Pages (PvP Stage 2 - Combat Tutorial)
   // Page 0: Dojo Welcome
   const PART_TWO_PAGE_DOJO = [
-    "Konnichiwa, whatever. Welcome to the dojo — the place where discipline goes to die and dancers go to cry.",
-    "Only one of you climbs out. Try not to make it awkward.",
+    "Konnichiwa, hmm. Welcome to the **dojo**, you are.\n\nWhere discipline *dies* and dancers cry, this place is. **Much pain**, you will feel.",
+    "Only **one of you**, out climbs. Focus, you must. Or *fail*, you will.",
   ];
 
   // Page 1: UI Explanation (English)
   const PART_TWO_PAGE_UI = [
-    "Alright, let's cover the basics before you trip and punch yourself.",
-    "Damage percent? Higher number equals faster flight time. Physics hates you.",
-    "Hearts? Your lives. Lose them, and you become set dressing.",
-    "Ultimate bar? Ten chunks of pure musical violence — earn them with perfect beatmatches.",
+    "Cover the **basics**, we must.\n\n**Damage percent?** Higher = faster flight. *Physics hates you.*",
+    "**Hearts?** Your lives. Lose them, and *set dressing* you become.",
+    "**Ultimate bar?** Ten chunks of pure violence. With perfect beatmatches, earn them you must.",
   ];
 
   // Page 2: Beatmatch Instruction (NEW - after UI explanation)
   const PART_TWO_PAGE_BEATMATCH_INSTRUCTION = [
-    "Punch in ten perfect beatmatches. TEN. Not eight, not 'almost'. Ten.",
-    "Keep an eye on the bar. It fills like guilt.",
+    "**Ten perfect beatmatches**, punch in you must. *Not eight. Not 'almost'.* **TEN.**",
+    "On the bar, keep an eye you must. Like guilt, it fills.",
   ];
 
   // Page 3: Ultimate Explanation (shown when ultimeter is full)
   // Character-specific hints are added dynamically
   const PART_TWO_PAGE_ULTIMATE_BASE = [
-    "Ultimate's full! Congrats, you've officially become dangerous in a very irresponsible way.",
-    "Hit R3 to cause problems for everyone.",
+    "**Full, your Ultimate is!** Dangerous in *irresponsible way*, you have become.\n\n**R3**, hit you must. Problems for everyone, it causes.",
   ];
 
   // Character-specific ultimate hints
   const ULTIMATE_HINTS = {
-    fritz: "Needs line of sight — don't aim backwards, genius.",
-    ernst:
-      "Same thing — look at the enemy before god smites you for incompetence.",
-    cyboard: "Teleport attack. You can't miss unless you try.",
-    HP: "Invincible bike-man. He will absolutely kick someone in the nuts.",
+    fritz: "*Line of sight* needed. **Don't aim backwards**, hmm.",
+    ernst: "At the enemy, **look you must**. Before god smites you, hmm.",
+    cyboard:
+      "**Teleport attack**. Miss, you cannot. Just aim and press, yes yes.",
+    HP: "**Invincible bike-man**. In the nuts, kick someone he will. Absolutely.",
   };
 
   // Page 4: Ultimate Task (shown after NPC spawns and ultimate explanation)
   const PART_TWO_PAGE_ULTIMATE_TASK = [
-    "Dummy's here. It's like a piñata, except it screams internally.",
-    "Hit it with your Ultimate.",
-    "R3. Press it. Make a memory.",
+    "Here, the **dummy** is. Like a piñata, *except it screams internally*.\n\nWith your Ultimate, **hit it** you must.\n\n**R3.** Press it. Make a memory.",
   ];
 
   // Page 5: Beat Charge Explanation (shown after ultimate hit)
   const PART_TWO_PAGE_BEAT_CHARGE_EXPLANATION = [
-    "Alright, now that you've tasted the unsettling joy of power, pay attention.",
-    "There's a special move — the Grab.",
-    "If you grab an opponent who's hoarding Ulti-Charges and Beat-Charges, you steal all their Ultimate power…",
-    "…and slam their accumulated Beat-Charge boost straight back into their trembling little body.",
-    "A charged grab can vaporize hopes, dreams, and half their health bar. Handle with emotional irresponsibility.",
+    "Tasted the *unsettling joy* of power, you have. **Attention**, pay you must.",
+    "A special move, there is: **The Grab**.\n\nAn opponent who hoards charges, if you grab them, **steal all their power** you will. Slam it *straight back* into them.",
+    "**Vaporize** hopes, dreams, and half their health bar, a charged grab can. With *emotional irresponsibility*, handle it you must.",
   ];
 
   // Page 6: Beat Charge Task (shown after explanation)
   const PART_TWO_PAGE_BEAT_CHARGE_TASK = [
-    "Task: farm beatmatches however you like.",
-    "But you better land one Beat-Charge attack. Don't fumble this.",
+    "Farm beatmatches however you like, you may.\n\nBut **one Beat-Charge attack**, land you must. *Don't fumble this.*",
   ];
 
   // Completion Modal (after beat charge hit)
   const PART_TWO_MODAL_COMPLETE = [
-    "Stone cold, it almost seemed like you were enjoying this. You can now advance further. Violent dance therapy might guide your ill soul through the darkness.",
+    "*Stone cold*, you seemed. Enjoying this, you almost were. **Worrying**, this is.\n\nFurther, advance you can now. *Violent dance therapy*, guide your soul it might... or deeper into darkness, it might take you.",
   ];
 
   // Part 3 Modal lines (Advanced Rhythm on pvp_stage_3)
   const PART_THREE_MODAL_INTRO = [
-    "When the music starts, your body legally has to move in rhythm.",
-    "At the top of the screen, the two UI bars collide to show the perfect beatmatch moment.",
-    "The louder the music (closer to a Dance Spot), the juicier the bonuses.",
-    "You gain:",
-    "• Beat Charges — temporary boosts for the next attack.",
-    "• Ultimate segments — ten for a full meltdown.",
+    "When the music starts, **legally your body must move** in rhythm. Like a puppet, you become. But *powerful* puppet, yes yes.",
+    "At the top, **two UI bars collide**. The perfect beatmatch moment, they show. *Watch them*, you must.",
+    "**Louder the music** = juicier bonuses. Closer to Dance Spot, *better it gets*.\n\nGain, you will:\n• **Beat Charges** — temporary boosts. *Use them fast.*\n• **Ultimate segments** — ten for full meltdown.",
   ];
 
   const PART_THREE_MODAL_STEP_B = [
-    "Burn those Beat Charges on a powered hit. Make some bones rattle.",
+    "**Burn those Beat Charges** on a powered hit. Bones rattle, make them you will.",
   ];
 
   const PART_THREE_MODAL_STEP_C = [
-    "Stand in the eye of the Dance Spot — that's where your power doubles.",
-    "2× Ultimate. 2× Beat Charges. A generous chaos-storm.",
-    "Every fighter here swings differently and has their own flavor of violence, but there's a basic attack skeleton they all follow:",
-    "R1 is your light attack — or a combo if you tap it a few times.",
-    "If you smash R1 twice quickly, every character performs a forward dash-strike with a chunky knockback. Universal move. Universal pain.",
-    "R2 is usually a charged smash or charged dash. The longer you charge, the meaner it gets — more damage, more priority, more regrets.",
-    "Some characters — like Cyboard during Precision Formation — get bonus effects at max charge, like triggering a short slow-motion window and letting you chain a brutal R2 uppercut.",
-    "L1 is either a ranged grab or a ranged attack, depending on the character's questionable life choices.",
-    "L2 is your standard special — wildly different per fighter. Could be a ranged blast, a tracking hook, or something we're afraid to legally describe.",
-    "And of course, you've got your dodge button and your aerial dash rotation, because gravity is only a suggestion.",
+    "In the **eye of Dance Spot**, stand you must. Where *power doubles*, that place is.\n\n**2× Ultimate. 2× Beat Charges.** *Generous chaos-storm*, this is.",
+    "Every fighter swings *differently*. But **basic attack skeleton**, follow they all:\n\n**R1** — light attack or combo. Tap it a few times, yes yes.",
+    "**R1 twice quickly** = forward dash-strike. *Universal move. Universal pain.*",
+    "**R2** — charged smash or dash. Longer you charge, *meaner it gets*. More damage, more priority, more regrets.",
+    "**L1** — ranged grab or attack. Depends on character's *questionable life choices*, hmm.",
+    "**L2** — standard special. *Wildly different* per fighter. Ranged blast, tracking hook, or something we're afraid to legally describe.",
+    "Dodge and aerial dash, you have. **Gravity, only a suggestion** it is.",
   ];
 
   const PART_THREE_MODAL_STEP_D = [
-    "If the music fades to a dying-toaster whisper and your UI starts looking ghostly, your bonuses drop to a quarter which compounds over time to a sginificant loss in your dance_assets which will cause the market to tank and which you and your friends will have to pay for, which you can´t and therefore you are my slaves and i will give you a job and meaningfull tasks and we will only think and talk about yourself because the freedome of your individuality hands me ther controll over the collective. Now shush little one or the BNDiddler will hear you complain about him being a creep.",
+    "If the music fades to *dying-toaster whisper* and your UI looks ghostly, **bonuses drop to a quarter**.\n\nCompounds over time, it does. Tank the market will, and pay for it you must. Pay you cannot... and therefore **my slaves** you become.\n\nShush now, little one. Or hear you complain, **BNDiddler** will. *Very dangerous*, he is, hmm.",
   ];
 
   function ensurePartTwoState(state) {
@@ -571,18 +551,8 @@ window.TutorialSystem = (() => {
         ultimateHitEnemy: false,
         beatChargeHitEnemy: false, // Track if player hit enemy with beat charges
         showBeatChargeModalTimer: -1, // NEW: Timer to delay modal
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 60, // 15% faster
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 1.5,
-          completed: false,
-        },
+        ultimateExplainPage: 0, // Track which ultimate explanation page we're on
+        beatChargeExplainPage: 0, // Track which beat charge explanation page we're on
       };
     }
     // Ensure required fields are set even if part2 already existed
@@ -620,60 +590,20 @@ window.TutorialSystem = (() => {
   }
 
   /**
-   * Get character-specific ultimate explanation
-   */
-  function getUltimateExplanation(state) {
-    const charName =
-      state.selectedCharacters?.[0] ||
-      state.players?.[0]?.charName ||
-      "cyboard";
-    const charNameLower = charName.toLowerCase();
-
-    // Build explanation with character-specific hint
-    const explanation = [...PART_TWO_PAGE_ULTIMATE_BASE];
-
-    // Add character-specific hint
-    const hint =
-      ULTIMATE_HINTS[charNameLower] ||
-      ULTIMATE_HINTS[charName] ||
-      ULTIMATE_HINTS.cyboard; // Default to cyboard if unknown
-    explanation.push(hint);
-
-    return explanation;
-  }
-
-  /**
-   * Get modal content for current Part 2 page
-   */
-  function getPartTwoPageContent(pageIndex, state) {
-    switch (pageIndex) {
-      case 0:
-        return PART_TWO_PAGE_DOJO;
-      case 1:
-        return PART_TWO_PAGE_UI;
-      case 2:
-        return PART_TWO_PAGE_BEATMATCH_INSTRUCTION;
-      case 3:
-        return getUltimateExplanation(state);
-      case 4:
-        return PART_TWO_PAGE_ULTIMATE_TASK;
-      case 5:
-        return PART_TWO_PAGE_BEAT_CHARGE_EXPLANATION;
-      case 6:
-        return PART_TWO_PAGE_BEAT_CHARGE_TASK;
-      default:
-        return [];
-    }
-  }
-
-  /**
    * Check if game should be frozen (modal visible in Part 2)
    */
   function isGameFrozen(state) {
     if (!state?.tutorial?.active) return false;
-    if (state.tutorial.part !== 2) return false;
-    const part2 = state.tutorial.part2;
-    return part2?.gameFrozen === true || part2?.modal?.visible === true;
+    // Use unified modal controller
+    if (window.TutorialModalController?.isGameFrozen(state)) {
+      return true;
+    }
+    // Also check part2.gameFrozen for legacy compatibility
+    if (state.tutorial.part === 2) {
+      const part2 = state.tutorial.part2;
+      return part2?.gameFrozen === true;
+    }
+    return false;
   }
 
   /**
@@ -689,102 +619,12 @@ window.TutorialSystem = (() => {
   function startPartOneIntro(state) {
     if (!state?.tutorial) return;
     if (!state.tutorial.part1) {
-      state.tutorial.part1 = {
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 60, // 15% faster than 52
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 2.0,
-          completed: false,
-          autoClose: true,
-        },
-      };
+      state.tutorial.part1 = {};
     }
-
-    const part1 = state.tutorial.part1;
-    const modal = part1.modal;
-    modal.visible = true;
-    modal.lines = PART_ONE_MODAL_INTRO.slice();
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
-  }
-
-  function updatePartOneModal(dt, state) {
-    const modal = state?.tutorial?.part1?.modal;
-    if (!modal || !modal.visible || !modal.lines || modal.lines.length === 0) {
-      return;
+    // Show intro modal using unified system
+    if (window.TutorialModalController) {
+      window.TutorialModalController.show(state, "part1-intro");
     }
-
-    // Part 1 modal auto-closes after typing is complete
-    if (modal.completed) {
-      modal.autoHideTimer += dt;
-      if (modal.autoHideTimer >= modal.hideAfter) {
-        modal.visible = false;
-        modal.completed = false;
-        modal.autoHideTimer = 0;
-      }
-      return;
-    }
-
-    if (modal.currentLine >= modal.lines.length) {
-      // All lines typed, mark as completed (will auto-hide)
-      modal.completed = true;
-      modal.autoHideTimer = 0;
-      return;
-    }
-
-    const currentLineText = modal.lines[modal.currentLine] || "";
-    if (modal.charIndex < currentLineText.length) {
-      modal.charIndex = Math.min(
-        currentLineText.length,
-        modal.charIndex + dt * modal.charsPerSecond
-      );
-      return;
-    }
-
-    modal.holdTimer += dt;
-    if (modal.holdTimer >= modal.holdDuration) {
-      modal.currentLine++;
-      modal.charIndex = 0;
-      modal.holdTimer = 0;
-      if (modal.currentLine >= modal.lines.length) {
-        modal.completed = true;
-        modal.autoHideTimer = 0;
-      }
-    }
-  }
-
-  function getPartOneModalDisplayLines(state) {
-    const modal = state?.tutorial?.part1?.modal;
-    if (!modal?.visible || !modal.lines) return [];
-
-    const lines = [];
-    const totalLines = modal.lines.length;
-    const visualIndex = Math.min(totalLines - 1, modal.currentLine);
-
-    for (let i = 0; i <= visualIndex; i++) {
-      const raw = modal.lines[i] || "";
-      if (i < modal.currentLine) {
-        lines.push(raw);
-        continue;
-      }
-      if (modal.currentLine >= totalLines) {
-        lines.push(raw);
-        continue;
-      }
-      const maxChars = Math.floor(Math.min(modal.charIndex, raw.length));
-      lines.push(raw.slice(0, maxChars));
-    }
-
-    return lines;
   }
 
   function startPartTwoIntro(state) {
@@ -797,21 +637,17 @@ window.TutorialSystem = (() => {
     part2.introComplete = false;
     part2.uiHighlightActive = false;
 
-    const modal = part2.modal;
-    modal.visible = true;
-    modal.lines = getPartTwoPageContent(0, state); // Dojo intro
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
-
     // Reset step tracking
     part2.currentStep = "intro";
     part2.perfectBeatsCollected = 0;
     part2.npcSpawned = false;
     part2.ultimateUsed = false;
     part2.ultimateHitEnemy = false;
+
+    // Show first dojo modal using unified system
+    if (window.TutorialModalController) {
+      window.TutorialModalController.show(state, "part2-dojo-1");
+    }
 
     console.log("[Tutorial Part 2] Game frozen, showing Dojo intro modal");
   }
@@ -829,92 +665,156 @@ window.TutorialSystem = (() => {
     switch (currentStep) {
       case "intro":
         // During intro: advance through pages 0 (Dojo), 1 (UI), and 2 (Beatmatch Instruction)
-        if (part2.currentPage < 2) {
-          part2.currentPage++;
-          part2.uiHighlightActive = part2.currentPage === 1;
-
-          const modal = part2.modal;
-          modal.lines = getPartTwoPageContent(part2.currentPage, state);
-          modal.currentLine = 0;
-          modal.charIndex = 0;
-          modal.holdTimer = 0;
-          modal.autoHideTimer = 0;
-          modal.completed = false;
-
-          console.log(
-            `[Tutorial Part 2] Advancing to page ${part2.currentPage}${
-              part2.uiHighlightActive ? " (UI highlight active)" : ""
-            }`
-          );
+        if (part2.currentPage === 0) {
+          // Show second dojo message
+          part2.currentPage = 1;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-dojo-2");
+          }
           return true;
-        } else {
-          // End of intro - start beatmatch step
+        } else if (part2.currentPage === 1) {
+          // Show first UI message
+          part2.currentPage = 2;
+          part2.uiHighlightActive = true;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-ui-1");
+          }
+          return true;
+        } else if (part2.currentPage === 2) {
+          // Show second UI message
+          part2.currentPage = 3;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-ui-2");
+          }
+          return true;
+        } else if (part2.currentPage === 3) {
+          // Show third UI message
+          part2.currentPage = 4;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-ui-3");
+          }
+          return true;
+        } else if (part2.currentPage === 4) {
+          // Show first beatmatch message
+          part2.currentPage = 5;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-beatmatch-1");
+          }
+          return true;
+        } else if (part2.currentPage === 5) {
+          // Show second beatmatch message and end intro
           part2.gameFrozen = false;
           part2.uiHighlightActive = false;
           part2.introComplete = true;
-          part2.modal.visible = false;
-          part2.modal.completed = false;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-beatmatch-2");
+          }
           part2.currentStep = "beatmatch";
-
           console.log(
             "[Tutorial Part 2] Intro complete, starting beatmatch step - player must fill ultimeter"
           );
           return false;
         }
+        return false;
 
       case "ultimate_explain":
-        // After ultimate explanation - show task modal (NPC already spawned when ultimeter became ready)
-        part2.currentPage = 4;
-        part2.currentStep = "ultimate_task";
-
-        const taskModal = part2.modal;
-        taskModal.lines = getPartTwoPageContent(4, state);
-        taskModal.currentLine = 0;
-        taskModal.charIndex = 0;
-        taskModal.holdTimer = 0;
-        taskModal.autoHideTimer = 0;
-        taskModal.completed = false;
-        taskModal.visible = true;
-
-        console.log(
-          "[Tutorial Part 2] Showing ultimate task modal (NPC already spawned)"
-        );
-        return true;
+        // After ultimate explanation - check if we need to show character-specific hint
+        if (!part2.ultimateExplainPage) {
+          part2.ultimateExplainPage = 1;
+          // Show base explanation first
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-ultimate-base");
+          }
+          return true;
+        } else if (part2.ultimateExplainPage === 1) {
+          // Show character-specific hint
+          const charName =
+            state.selectedCharacters?.[0] ||
+            state.players?.[0]?.charName ||
+            "cyboard";
+          const hintId =
+            window.TutorialMessages?.getUltimateHintId?.(charName) ||
+            "part2-ultimate-cyboard";
+          part2.ultimateExplainPage = 2;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, hintId);
+          }
+          return true;
+        } else {
+          // All explanation messages shown, show task modal
+          part2.currentStep = "ultimate_task";
+          part2.ultimateExplainPage = 0;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-ultimate-task");
+          }
+          console.log(
+            "[Tutorial Part 2] Showing ultimate task modal (NPC already spawned)"
+          );
+          return true;
+        }
 
       case "ultimate_task":
         // After ultimate task confirmation - unfreeze and let player use ultimate
         part2.gameFrozen = false;
-        part2.modal.visible = false;
-        part2.modal.completed = false;
-
+        if (window.TutorialModalController) {
+          window.TutorialModalController.hide(state);
+        }
         console.log(
           "[Tutorial Part 2] Ultimate task started - player must hit enemy with ultimate"
         );
         return false;
 
       case "beat_charge_explain":
-        // After beat charge explanation - show task modal
-        part2.currentPage = 6;
-        part2.currentStep = "beat_charge_task";
-
-        const beatChargeTaskModal = part2.modal;
-        beatChargeTaskModal.lines = getPartTwoPageContent(6, state);
-        beatChargeTaskModal.currentLine = 0;
-        beatChargeTaskModal.charIndex = 0;
-        beatChargeTaskModal.holdTimer = 0;
-        beatChargeTaskModal.autoHideTimer = 0;
-        beatChargeTaskModal.completed = false;
-        beatChargeTaskModal.visible = true;
-
-        console.log("[Tutorial Part 2] Showing beat charge task modal");
-        return true;
+        // After beat charge explanation - check if we need to show more explanation messages
+        if (!part2.beatChargeExplainPage) {
+          part2.beatChargeExplainPage = 1;
+        }
+        if (part2.beatChargeExplainPage === 1) {
+          // Show second explanation message
+          part2.beatChargeExplainPage = 2;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-beat-charge-2");
+          }
+          return true;
+        } else if (part2.beatChargeExplainPage === 2) {
+          // Show third explanation message
+          part2.beatChargeExplainPage = 3;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(state, "part2-beat-charge-3");
+          }
+          return true;
+        } else if (part2.beatChargeExplainPage === 3) {
+          // All explanation messages shown, show controls modal first
+          part2.beatChargeExplainPage = 4; // Use 4 for controls page
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(
+              state,
+              "part2-beat-charge-controls"
+            );
+          }
+          console.log("[Tutorial Part 2] Showing beat charge controls modal");
+          return true;
+        } else if (part2.beatChargeExplainPage === 4) {
+          // Controls modal shown, now show task modal
+          part2.currentStep = "beat_charge_task";
+          part2.beatChargeExplainPage = 0;
+          if (window.TutorialModalController) {
+            window.TutorialModalController.show(
+              state,
+              "part2-beat-charge-task"
+            );
+          }
+          console.log("[Tutorial Part 2] Showing beat charge task modal");
+          return true;
+        }
+        return false;
 
       case "beat_charge_task":
         // After beat charge task confirmation - unfreeze and let player hit enemy with beat charges
         part2.gameFrozen = false;
-        part2.modal.visible = false;
-        part2.modal.completed = false;
-
+        if (window.TutorialModalController) {
+          window.TutorialModalController.hide(state);
+        }
         console.log(
           "[Tutorial Part 2] Beat charge task started - player must hit enemy with beat charge attack"
         );
@@ -923,9 +823,10 @@ window.TutorialSystem = (() => {
       case "complete":
         // After completion modal - end tutorial part 2
         part2.gameFrozen = false;
-        part2.modal.visible = false;
         part2.completeModalShown = true;
-
+        if (window.TutorialModalController) {
+          window.TutorialModalController.hide(state);
+        }
         console.log(
           "[Tutorial Part 2] Complete! Transitioning to next part..."
         );
@@ -946,17 +847,13 @@ window.TutorialSystem = (() => {
     if (!part2) return;
 
     part2.gameFrozen = true;
-    part2.currentPage = 3; // Page 3 is ultimate explanation now
     part2.currentStep = "ultimate_explain";
+    part2.ultimateExplainPage = 1; // Start with base explanation
 
-    const modal = part2.modal;
-    modal.visible = true;
-    modal.lines = getPartTwoPageContent(3, state); // Page 3
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
+    // Show base ultimate explanation first
+    if (window.TutorialModalController) {
+      window.TutorialModalController.show(state, "part2-ultimate-base");
+    }
 
     console.log(
       "[Tutorial Part 2] Ultimeter full! Showing ultimate explanation (NPC already spawned)"
@@ -1052,17 +949,13 @@ window.TutorialSystem = (() => {
     if (!part2) return;
 
     part2.gameFrozen = true;
-    part2.currentPage = 5;
     part2.currentStep = "beat_charge_explain";
+    part2.beatChargeExplainPage = 1; // Start with first message
 
-    const modal = part2.modal;
-    modal.visible = true;
-    modal.lines = getPartTwoPageContent(5, state);
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
+    // Show first beat charge explanation
+    if (window.TutorialModalController) {
+      window.TutorialModalController.show(state, "part2-beat-charge-1");
+    }
 
     console.log(
       "[Tutorial Part 2] Ultimate section complete! Showing beat charge explanation"
@@ -1121,15 +1014,11 @@ window.TutorialSystem = (() => {
 
     // Freeze game during completion modal
     part2.gameFrozen = true;
+    part2.currentStep = "complete";
 
-    const modal = part2.modal;
-    modal.visible = true;
-    modal.lines = PART_TWO_MODAL_COMPLETE.slice();
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
+    if (window.TutorialModalController) {
+      window.TutorialModalController.show(state, "part2-complete");
+    }
 
     console.log("[Tutorial Part 2] Showing completion modal, game frozen");
   }
@@ -1151,18 +1040,6 @@ window.TutorialSystem = (() => {
         currentStep: "intro",
         beatChargesCollected: false,
         chargedAttackUsed: false,
-        modal: {
-          visible: false,
-          lines: [],
-          currentLine: 0,
-          charIndex: 0,
-          charsPerSecond: 60, // 15% faster than 52
-          holdDuration: 1.1,
-          holdTimer: 0,
-          autoHideTimer: 0,
-          hideAfter: 1.5,
-          completed: false,
-        },
       };
     }
 
@@ -1186,106 +1063,109 @@ window.TutorialSystem = (() => {
   function showPartThreeStepModal(state, step) {
     if (!state?.tutorial?.part3) return;
     const part3 = state.tutorial.part3;
-    const modal = part3.modal;
 
-    let lines = [];
     switch (step) {
       case "intro":
-        lines = PART_THREE_MODAL_INTRO.slice();
-        break;
+        // Show first intro message (others will be shown on confirmation)
+        if (!part3.introPage) {
+          part3.introPage = 1;
+        }
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-intro-1");
+        }
+        part3.currentStep = step;
+        return;
       case "stepB":
-        lines = PART_THREE_MODAL_STEP_B.slice();
-        break;
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-step-b");
+        }
+        part3.currentStep = step;
+        return;
       case "stepC":
-        lines = PART_THREE_MODAL_STEP_C.slice();
-        break;
+        // Show first step C message (others will be shown on confirmation)
+        if (!part3.stepCPage) {
+          part3.stepCPage = 1;
+        }
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-step-c-1");
+        }
+        part3.currentStep = step;
+        return;
       case "stepD":
-        lines = PART_THREE_MODAL_STEP_D.slice();
-        break;
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-step-d");
+        }
+        part3.currentStep = step;
+        return;
       default:
         console.warn(`[Tutorial] Unknown part 3 step: ${step}`);
         return;
     }
-
-    modal.visible = true;
-    modal.lines = lines;
-    modal.currentLine = 0;
-    modal.charIndex = 0;
-    modal.holdTimer = 0;
-    modal.autoHideTimer = 0;
-    modal.completed = false;
-    part3.currentStep = step;
   }
 
-  function updatePartThreeModal(dt, state) {
-    const modal = state?.tutorial?.part3?.modal;
-    if (!modal || !modal.visible || !modal.lines || modal.lines.length === 0) {
-      return;
-    }
-
-    // If modal is completed, wait for confirmation (don't auto-hide)
-    if (modal.completed) {
-      return; // Modal stays visible until player confirms
-    }
-
-    if (modal.currentLine >= modal.lines.length) {
-      // All lines typed, mark as completed (waiting for confirmation)
-      modal.completed = true;
-      return;
-    }
-
-    const currentLineText = modal.lines[modal.currentLine] || "";
-    if (modal.charIndex < currentLineText.length) {
-      modal.charIndex = Math.min(
-        currentLineText.length,
-        modal.charIndex + dt * modal.charsPerSecond
-      );
-      return;
-    }
-
-    modal.holdTimer += dt;
-    if (modal.holdTimer >= modal.holdDuration) {
-      modal.currentLine++;
-      modal.charIndex = 0;
-      modal.holdTimer = 0;
-      if (modal.currentLine >= modal.lines.length) {
-        modal.completed = true;
-      }
-    }
-  }
-
+  /**
+   * Confirm Part 3 modal (handles multi-page sequences)
+   */
   function confirmPartThreeModal(state) {
-    const modal = state?.tutorial?.part3?.modal;
-    if (!modal || !modal.completed) return false; // Only confirm if typing is done
+    const part3 = state?.tutorial?.part3;
+    if (!part3) return false;
 
-    modal.visible = false;
-    modal.completed = false;
-    return true;
-  }
-
-  function getPartThreeModalDisplayLines(state) {
-    const modal = state?.tutorial?.part3?.modal;
-    if (!modal?.visible || !modal.lines) return [];
-
-    const lines = [];
-    const totalLines = modal.lines.length;
-    const visualIndex = Math.min(totalLines - 1, modal.currentLine);
-
-    for (let i = 0; i <= visualIndex; i++) {
-      const raw = modal.lines[i] || "";
-      if (i < modal.currentLine) {
-        lines.push(raw);
-        continue;
-      }
-      if (modal.currentLine >= totalLines) {
-        lines.push(raw);
-        continue;
-      }
-      const maxChars = Math.floor(Math.min(modal.charIndex, raw.length));
-      lines.push(raw.slice(0, maxChars));
+    // Use unified modal controller
+    if (!window.TutorialModalController?.isWaitingForConfirmation(state)) {
+      return false;
     }
 
-    return lines;
+    const wasConfirmed = window.TutorialModalController?.confirm(state);
+    if (!wasConfirmed) return false;
+
+    // Handle multi-page sequences
+    if (part3.currentStep === "intro") {
+      if (!part3.introPage) part3.introPage = 1;
+      if (part3.introPage === 1) {
+        part3.introPage = 2;
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-intro-2");
+        }
+        return true;
+      } else if (part3.introPage === 2) {
+        part3.introPage = 3;
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(state, "part3-intro-3");
+        }
+        return true;
+      } else {
+        // All intro messages shown
+        part3.introPage = 0;
+        return true;
+      }
+    } else if (part3.currentStep === "stepC") {
+      if (!part3.stepCPage) part3.stepCPage = 1;
+      const stepCMessages = [
+        "part3-step-c-1",
+        "part3-step-c-2",
+        "part3-step-c-3",
+        "part3-step-c-4",
+        "part3-step-c-5",
+        "part3-step-c-6",
+        "part3-step-c-7",
+      ];
+      if (part3.stepCPage < stepCMessages.length) {
+        part3.stepCPage++;
+        if (window.TutorialModalController) {
+          window.TutorialModalController.show(
+            state,
+            stepCMessages[part3.stepCPage - 1]
+          );
+        }
+        return true;
+      } else {
+        // All step C messages shown
+        part3.stepCPage = 0;
+        return true;
+      }
+    }
+
+    return true;
   }
 
   function resetPartThreeState(state) {
@@ -1303,45 +1183,10 @@ window.TutorialSystem = (() => {
     }
   }
 
-  function updatePartTwoModal(dt, state) {
-    const modal = state?.tutorial?.part2?.modal;
-    if (!modal || !modal.visible) return;
-
-    // Safety: if no lines, mark complete to avoid soft lock
-    if (!modal.lines || modal.lines.length === 0) {
-      console.warn("[Tutorial] Modal visible but no lines - forcing complete");
-      modal.completed = true;
-      return;
-    }
-
-    // If modal is completed, wait for confirmation (don't auto-hide)
-    if (modal.completed) {
-      return; // Modal stays visible until player confirms
-    }
-
-    if (modal.currentLine >= modal.lines.length) {
-      // All lines typed, mark as completed (waiting for confirmation)
-      modal.completed = true;
-      return;
-    }
-
-    const currentLineText = modal.lines[modal.currentLine] || "";
-    if (modal.charIndex < currentLineText.length) {
-      modal.charIndex = Math.min(
-        currentLineText.length,
-        modal.charIndex + dt * modal.charsPerSecond
-      );
-      return;
-    }
-
-    modal.holdTimer += dt;
-    if (modal.holdTimer >= modal.holdDuration) {
-      modal.currentLine++;
-      modal.charIndex = 0;
-      modal.holdTimer = 0;
-      if (modal.currentLine >= modal.lines.length) {
-        modal.completed = true;
-      }
+  // Unified modal update (replaces updatePartOneModal, updatePartTwoModal, updatePartThreeModal)
+  function updateTutorialModal(dt, state) {
+    if (window.TutorialModalController) {
+      window.TutorialModalController.update(dt, state);
     }
   }
 
@@ -1351,8 +1196,12 @@ window.TutorialSystem = (() => {
    */
   function confirmModal(state) {
     const part2 = state?.tutorial?.part2;
-    const modal = part2?.modal;
-    if (!modal || !modal.completed) return false; // Only confirm if typing is done
+    if (!part2) return false;
+
+    // Use unified modal controller
+    if (!window.TutorialModalController?.isWaitingForConfirmation(state)) {
+      return false;
+    }
 
     const currentStep = part2.currentStep;
     console.log(
@@ -1365,16 +1214,20 @@ window.TutorialSystem = (() => {
         "[Tutorial Part 2] Completion modal confirmed - transitioning to Part 3"
       );
       state.tutorial.transitionToPart3 = true;
-      modal.visible = false;
-      modal.completed = false;
+      if (window.TutorialModalController) {
+        window.TutorialModalController.hide(state);
+      }
       part2.gameFrozen = false;
       return true;
     }
 
     // Handle step-based modal confirmations
+    const wasConfirmed = window.TutorialModalController?.confirm(state);
+    if (!wasConfirmed) return false;
+
     switch (currentStep) {
       case "intro":
-        // During intro: advance through pages 0 (Dojo) and 1 (UI)
+        // During intro: advance through pages
         const hasMoreIntroPages = advancePartTwoPage(state);
         if (!hasMoreIntroPages) {
           console.log(
@@ -1384,9 +1237,9 @@ window.TutorialSystem = (() => {
         return true;
 
       case "ultimate_explain":
-        // After ultimate explanation - spawn NPC and show task modal
+        // After ultimate explanation - show task modal
         console.log(
-          "[Tutorial Part 2] Ultimate explanation confirmed, spawning NPC"
+          "[Tutorial Part 2] Ultimate explanation confirmed, showing task"
         );
         advancePartTwoPage(state);
         return true;
@@ -1416,9 +1269,6 @@ window.TutorialSystem = (() => {
         return true;
 
       default:
-        // Default: just close the modal
-        modal.visible = false;
-        modal.completed = false;
         return true;
     }
   }
@@ -1485,31 +1335,6 @@ window.TutorialSystem = (() => {
         part3.tipMessage = "";
       }
     }
-  }
-
-  function getPartTwoModalDisplayLines(state) {
-    const modal = state?.tutorial?.part2?.modal;
-    if (!modal?.visible || !modal.lines) return [];
-
-    const lines = [];
-    const totalLines = modal.lines.length;
-    const visualIndex = Math.min(totalLines - 1, modal.currentLine);
-
-    for (let i = 0; i <= visualIndex; i++) {
-      const raw = modal.lines[i] || "";
-      if (i < modal.currentLine) {
-        lines.push(raw);
-        continue;
-      }
-      if (modal.currentLine >= totalLines) {
-        lines.push(raw);
-        continue;
-      }
-      const maxChars = Math.floor(Math.min(modal.charIndex, raw.length));
-      lines.push(raw.slice(0, maxChars));
-    }
-
-    return lines;
   }
 
   /**
@@ -1851,24 +1676,20 @@ window.TutorialSystem = (() => {
     resetCombatSteps,
     completeTutorial,
     startPartOneIntro,
-    updatePartOneModal,
-    getPartOneModalDisplayLines,
     startPartTwoIntro,
     showPartTwoCompleteModal,
-    updatePartTwoModal,
+    updateTutorialModal, // Unified modal update
     updatePartTwoTip,
     setPartTwoTip,
-    getPartTwoModalDisplayLines,
     confirmModal,
     advancePartTwoPage,
     isGameFrozen,
     isUIHighlightActive,
-    getPartTwoPageContent,
     // NEW: Part 2 step tracking
     checkPartTwoUltimeterReady,
     trackPartTwoUltimateHit,
-    checkPartTwoUltimateUsed, // <-- Add new function
-    updatePartTwoLogic, // <-- NEW
+    checkPartTwoUltimateUsed,
+    updatePartTwoLogic,
     trackPartTwoBeatChargeHit,
     showUltimateExplanationModal,
     showBeatChargeExplanationModal,
@@ -1878,10 +1699,8 @@ window.TutorialSystem = (() => {
     getPartTwoRequiredBeats: (state) =>
       state?.tutorial?.part2?.requiredPerfectBeats || 10,
     startPartThreeIntro,
-    updatePartThreeModal,
-    confirmPartThreeModal,
-    getPartThreeModalDisplayLines,
     resetPartThreeState,
     showPartThreeStepModal,
+    confirmPartThreeModal,
   };
 })();

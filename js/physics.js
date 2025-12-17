@@ -366,16 +366,49 @@ window.Physics = (() => {
           attacker.attack.maxChargeGrabbedTarget === p ||
           attacker.attack.savedTarget === p); // CRITICAL: Also check savedTarget for ranged grabs
 
+      // EMERGENCY FAILSAFE: Track how long we've been grabbed
+      if (!p._grabTimer) {
+        p._grabTimer = 0;
+      }
+      p._grabTimer += dt;
+
       if (!isHeld) {
         // Grab broken externally (grabber eliminated, attack ended, etc.)
+        console.log(
+          `[Grab DEBUG] ${p.charName} auto-released: grabber no longer holding`
+        );
         p.isGrabbed = false;
         p.grabbedBy = null;
+        p._grabTimer = 0;
         setAnim(p, "jump_fall", false, state);
         // Continue update normally to apply gravity/physics immediately
+      } else if (p._grabTimer > 5.0) {
+        // EMERGENCY: Been grabbed for more than 5 seconds, force release
+        console.log(
+          `[Grab DEBUG] EMERGENCY: ${
+            p.charName
+          } grabbed for ${p._grabTimer.toFixed(2)}s, force releasing`
+        );
+        p.isGrabbed = false;
+        p.grabbedBy = null;
+        p._grabTimer = 0;
+        if (attacker && attacker.attack) {
+          // Force release on attacker side too
+          if (
+            window.AttackSystem &&
+            typeof window.AttackSystem.releaseGrabbedTarget === "function"
+          ) {
+            window.AttackSystem.releaseGrabbedTarget(attacker, state);
+          }
+        }
+        setAnim(p, "jump_fall", false, state);
       } else {
         advanceAnim(dt, p, state); // Continue playing animation while grabbed
         return;
       }
+    } else {
+      // Reset grab timer when not grabbed
+      p._grabTimer = 0;
     }
 
     p.parryWindow = Math.max(0, (p.parryWindow || 0) - 1); // Decrement frame-by-frame
@@ -463,6 +496,12 @@ window.Physics = (() => {
       rollDown: finalInput.rollDown || (finalKbIn.rollDown ?? false),
       rollHeld: finalInput.rollHeld || (finalKbIn.rollHeld ?? false),
       rollUp: finalInput.rollUp || (finalKbIn.rollUp ?? false),
+      wallInteractDown:
+        finalInput.wallInteractDown || (finalKbIn.wallInteractDown ?? false),
+      wallInteractHeld:
+        finalInput.wallInteractHeld || (finalKbIn.wallInteractHeld ?? false),
+      wallInteractUp:
+        finalInput.wallInteractUp || (finalKbIn.wallInteractUp ?? false),
       downHeld: finalInput.downHeld || (finalKbIn.downHeld ?? false),
       grabDown: finalInput.grabDown || (finalKbIn.grabDown ?? false),
       ultiDown: finalInput.ultiDown || (finalKbIn.ultiDown ?? false),
@@ -1667,7 +1706,7 @@ window.Physics = (() => {
               part3.beatChargesCollected = true;
               // Show Step B modal after a short delay
               setTimeout(() => {
-                if (state.tutorial?.part3 && !part3.modal.visible) {
+                if (state.tutorial?.part3 && !state.tutorial?.modal?.visible) {
                   window.TutorialSystem?.showPartThreeStepModal?.(
                     state,
                     "stepB"
@@ -1686,13 +1725,16 @@ window.Physics = (() => {
               // Check if we should show Step C modal (center hint)
               // This should appear while player is collecting, before ultimeter is full
               if (
-                !part3.modal.visible &&
+                !state.tutorial?.modal?.visible &&
                 part3.currentStep === "stepB" &&
                 part3.chargedAttackUsed
               ) {
                 // Show Step C modal after charged attack is used
                 setTimeout(() => {
-                  if (state.tutorial?.part3 && !part3.modal.visible) {
+                  if (
+                    state.tutorial?.part3 &&
+                    !state.tutorial?.modal?.visible
+                  ) {
                     window.TutorialSystem?.showPartThreeStepModal?.(
                       state,
                       "stepC"
@@ -1711,7 +1753,7 @@ window.Physics = (() => {
               );
               // Show Step D modal after center achievement
               setTimeout(() => {
-                if (state.tutorial?.part3 && !part3.modal.visible) {
+                if (state.tutorial?.part3 && !state.tutorial?.modal?.visible) {
                   window.TutorialSystem?.showPartThreeStepModal?.(
                     state,
                     "stepD"
@@ -2447,13 +2489,17 @@ window.Physics = (() => {
     // that conflict with the grab animation, causing game-breaking loops
     if (p.attack && p.attack.type === "grab") {
       console.log(
-        `[Dance] BLOCKED: P${p.padIndex + 1} cannot trigger dance animation during grab attack`
+        `[Dance] BLOCKED: P${
+          p.padIndex + 1
+        } cannot trigger dance animation during grab attack`
       );
       return;
     }
     if (p.isGrabbed) {
       console.log(
-        `[Dance] BLOCKED: P${p.padIndex + 1} cannot trigger dance animation while grabbed`
+        `[Dance] BLOCKED: P${
+          p.padIndex + 1
+        } cannot trigger dance animation while grabbed`
       );
       return;
     }
@@ -3004,14 +3050,21 @@ window.Physics = (() => {
       p.facing = inputs.axis > 0 ? 1 : -1;
 
     // WALL INTERACTION (wallslide + walljump)
-    // Roll/Dodge Hold = Wallslide, Roll/Dodge Release = Walljump
-    const wallInteractPressed = inputs.rollDown || inputs.rollHeld;
-    const wallInteractHeld = inputs.rollHeld;
-    const wallInteractReleased = inputs.rollUp;
+    // Ctrl Hold = Wallslide, Ctrl Release = Walljump
+    // Fallback to roll inputs if wallInteract not available (for gamepad compatibility)
+    const wallInteractPressed =
+      inputs.wallInteractDown ||
+      inputs.wallInteractHeld ||
+      inputs.rollDown ||
+      inputs.rollHeld;
+    const wallInteractHeld = inputs.wallInteractHeld || inputs.rollHeld;
+    const wallInteractReleased = inputs.wallInteractUp || inputs.rollUp;
     // Wallslide can interrupt roll if wall contact is present
     // Check for wall contact first to determine if wallslide should take priority
     let hasWallContact = false;
-    if (state.walljumpData && !p.grounded) {
+    // Check wall contact even when grounded so wall interaction can be
+    // initiated from the ground edge (prevents false 'groundedNoCling' gating).
+    if (state.walljumpData) {
       const hb = Renderer.getHurtbox(p);
       const checkPoints = [
         { x: hb.left - 2, y: hb.top + hb.h / 2 },
@@ -3085,16 +3138,17 @@ window.Physics = (() => {
         const pt = checkPoints[i];
         // Use scaled version which handles coordinate scaling internally
         if (isWalljumpPixelScaled(pt.x, pt.y, state.walljumpData, state)) {
-          // FRONT/BACK-FACE CHECK: Is there solid material BEHIND this wall_bounce pixel?
-          // If yes = Back-Face (don't allow wallslide from this side)
-          // If no = Front-Face (allow wallslide)
-          // pt.x/pt.y are already in world coordinates, no need to convert back
+          // FRONT/BACK-FACE CHECK: Is there a DARK_GRAY WALL behind this green wallslide pixel?
+          // If yes = Back-Face (don't allow wallslide from this side, wall blocks access)
+          // If no = Front-Face (allow wallslide from this side)
+          // pt.x/pt.y are already in world coordinates
 
-          // Check 8 pixels TO THE LEFT of the wall_bounce pixel for solid ground
-          // This detects if there's a wall in front of the wall_bounce surface
-          const checkBackFaceX = pt.x - 8; // 8 pixels to the left of wall_bounce
+          // Check 8 pixels TO THE LEFT of the wall_bounce pixel for a DARK_GRAY wall
+          // CRITICAL: Only check for DARK_GRAY walls, NOT black ground
+          // Black ground should NOT block wallslide (it's passable floor)
+          const checkBackFaceX = pt.x - 8; // 8 pixels to the left of wallslide surface
 
-          const isBackFace = isPixelSolidScaled(
+          const isBackFace = isWallPixelScaled(
             checkBackFaceX,
             pt.y,
             state.groundData,
@@ -3102,13 +3156,11 @@ window.Physics = (() => {
           );
 
           if (!isBackFace) {
-            // Front-Face detected - allow wallslide from this side
-            // NOTE: Direction check removed - if there's no solid material behind the wall_bounce,
-            // the player can wallslide regardless of approach direction
+            // Front-Face detected - allow wallslide from this side (no DARK_GRAY wall blocking)
             leftWall = true;
             break;
           }
-          // Back-Face: solid material behind = don't allow wallslide from this direction
+          // Back-Face: DARK_GRAY wall behind = don't allow wallslide from this direction
         }
       }
 
@@ -3117,13 +3169,17 @@ window.Physics = (() => {
         const pt = checkPoints[i];
         // Use scaled version which handles coordinate scaling internally
         if (isWalljumpPixelScaled(pt.x, pt.y, state.walljumpData, state)) {
-          // FRONT/BACK-FACE CHECK: Is there solid material BEHIND this wall_bounce pixel?
-          // pt.x/pt.y are already in world coordinates, no need to convert back
+          // FRONT/BACK-FACE CHECK: Is there a DARK_GRAY WALL behind this green wallslide pixel?
+          // If yes = Back-Face (don't allow wallslide from this side, wall blocks access)
+          // If no = Front-Face (allow wallslide from this side)
+          // pt.x/pt.y are already in world coordinates
 
-          // Check 8 pixels TO THE RIGHT of the wall_bounce pixel for solid ground
-          const checkBackFaceX = pt.x + 8; // 8 pixels to the right of wall_bounce
+          // Check 8 pixels TO THE RIGHT of the wall_bounce pixel for a DARK_GRAY wall
+          // CRITICAL: Only check for DARK_GRAY walls, NOT black ground
+          // Black ground should NOT block wallslide (it's passable floor)
+          const checkBackFaceX = pt.x + 8; // 8 pixels to the right of wallslide surface
 
-          const isBackFace = isPixelSolidScaled(
+          const isBackFace = isWallPixelScaled(
             checkBackFaceX,
             pt.y,
             state.groundData,
@@ -3131,13 +3187,11 @@ window.Physics = (() => {
           );
 
           if (!isBackFace) {
-            // Front-Face detected - allow wallslide from this side
-            // NOTE: Direction check removed - if there's no solid material behind the wall_bounce,
-            // the player can wallslide regardless of approach direction
+            // Front-Face detected - allow wallslide from this side (no DARK_GRAY wall blocking)
             rightWall = true;
             break;
           }
-          // Back-Face: solid material behind = don't allow wallslide from this direction
+          // Back-Face: DARK_GRAY wall behind = don't allow wallslide from this direction
         }
       }
 
@@ -3616,31 +3670,13 @@ window.Physics = (() => {
             state.cameraBounds
           );
 
-          if (isAirborne(p)) {
-            if (false) {
-              // DISABLED WALLBOUNCE
-            } else if (surfaceType === "ceiling") {
-              p.vel.x *= -0.3; // Softer ceiling bounce
-            } else {
-              p.vel.x *= -0.6; // Default ground bounce
-            }
-          } else {
-            if (false) {
-              // DISABLED WALLBOUNCE
-            } else if (surfaceType === "ceiling") {
-              p.vel.x *= 0.3; // Sliding on ceiling
-            } else {
-              p.vel.x = 0; // Stop on ground
-            }
-          }
-          // Only snap if not already handled above
-          if (surfaceType !== "wall" || !isAirborne(p)) {
-            p.pos.x = Math.floor(checkX) - hb.w; // Snap to surface
-          }
-
-          // CONTINUOUS POSITION CORRECTION: Always ensure player is not inside wall
+          // CRITICAL FIX: Walls are ALWAYS impassable, regardless of airborne state
           if (surfaceType === "wall") {
-            // Re-check hurtbox after position correction
+            // Walls: Always stop movement and correct position
+            p.vel.x = 0;
+            p.pos.x = Math.floor(checkX) - hb.w; // Snap to surface immediately
+
+            // CONTINUOUS POSITION CORRECTION: Ensure player is never inside wall
             const newHb = Renderer.getHurtbox(p);
             if (
               isPixelSolidScaled(
@@ -3653,6 +3689,26 @@ window.Physics = (() => {
               // Still overlapping, force position correction
               p.pos.x = Math.floor(checkX) - newHb.w - 0.1;
             }
+          } else if (isAirborne(p)) {
+            // Non-wall surfaces when airborne
+            if (false) {
+              // DISABLED WALLBOUNCE
+            } else if (surfaceType === "ceiling") {
+              p.vel.x *= -0.3; // Softer ceiling bounce
+            } else {
+              p.vel.x *= -0.6; // Default ground bounce
+            }
+            p.pos.x = Math.floor(checkX) - hb.w; // Snap to surface
+          } else {
+            // Non-wall surfaces when grounded
+            if (false) {
+              // DISABLED WALLBOUNCE
+            } else if (surfaceType === "ceiling") {
+              p.vel.x *= 0.3; // Sliding on ceiling
+            } else {
+              p.vel.x = 0; // Stop on ground
+            }
+            p.pos.x = Math.floor(checkX) - hb.w; // Snap to surface
           }
         }
       } else {
@@ -3671,7 +3727,20 @@ window.Physics = (() => {
             state.cameraBounds
           );
 
-          if (isAirborne(p)) {
+          // CRITICAL FIX: Walls are ALWAYS impassable, regardless of airborne state
+          if (surfaceType === "wall") {
+            // Walls: Always stop movement and correct position
+            p.vel.x = 0;
+            p.pos.x = Math.ceil(checkX) + 1; // Snap to surface immediately
+
+            // CONTINUOUS POSITION CORRECTION: Ensure player is never inside wall
+            const newHb = Renderer.getHurtbox(p);
+            if (isPixelSolidScaled(newHb.left, checkYMid, groundData, state)) {
+              // Still overlapping, force position correction
+              p.pos.x = Math.ceil(checkX) + 1.1;
+            }
+          } else if (isAirborne(p)) {
+            // Non-wall surfaces when airborne
             if (false) {
               // DISABLED WALLBOUNCE
             } else if (surfaceType === "ceiling") {
@@ -3679,7 +3748,9 @@ window.Physics = (() => {
             } else {
               p.vel.x *= -0.6; // Default ground bounce
             }
+            p.pos.x = Math.ceil(checkX) + 1; // Snap to surface
           } else {
+            // Non-wall surfaces when grounded
             if (false) {
               // DISABLED WALLBOUNCE
             } else if (surfaceType === "ceiling") {
@@ -3687,20 +3758,7 @@ window.Physics = (() => {
             } else {
               p.vel.x = 0; // Stop on ground
             }
-          }
-          // Only snap if not already handled above
-          if (surfaceType !== "wall" || !isAirborne(p)) {
             p.pos.x = Math.ceil(checkX) + 1; // Snap to surface
-          }
-
-          // CONTINUOUS POSITION CORRECTION: Always ensure player is not inside wall
-          if (surfaceType === "wall") {
-            // Re-check hurtbox after position correction
-            const newHb = Renderer.getHurtbox(p);
-            if (isPixelSolidScaled(newHb.left, checkYMid, groundData, state)) {
-              // Still overlapping, force position correction
-              p.pos.x = Math.ceil(checkX) + 1.1;
-            }
           }
         }
       }
@@ -3944,20 +4002,51 @@ window.Physics = (() => {
   function isPixelSolid(x, y, data, cameraBounds = null) {
     if (!data) return false;
 
-    // Scale coordinates if camera bounds provided (scaled stages)
-    const coords = scaleToHeatmap(x, y, data, cameraBounds);
-    const ix = coords.x;
-    const iy = coords.y;
+    // Use color-aware solid test: only treat explicit ground/wall colors as solid.
+    // This prevents arbitrary opaque pixels from being interpreted as blocking.
+    const color = getPixelColor(x, y, data, cameraBounds);
+    if (!color || color.a <= 128) return false;
 
-    if (ix < 0 || ix >= data.width || iy < 0 || iy >= data.height) {
-      return false;
-    }
-    return data.data[(iy * data.width + ix) * 4 + 3] > 128;
+    // Accept both BLACK (ground) and DARK_GRAY (wall) as solid pixels.
+    // Use a small tolerance to allow for exact-authoring or small export variance.
+    const tolerance = 2;
+    const isBlack = colorsMatch(color, HEATMAP_COLORS.BLACK, tolerance);
+    const isWallGray = colorsMatch(color, HEATMAP_COLORS.DARK_GRAY, tolerance);
+    return isBlack || isWallGray;
   }
 
   // Wrapper function that automatically uses state.cameraBounds
   function isPixelSolidScaled(x, y, data, state) {
     return isPixelSolid(x, y, data, state?.cameraBounds ?? null);
+  }
+
+  /**
+   * Check if a pixel is specifically a wall pixel (DARK_GRAY)
+   * Returns true only when the pixel color matches the configured wall color.
+   */
+  function isWallPixel(x, y, data, cameraBounds = null) {
+    if (!data) return false;
+    const color = getPixelColor(x, y, data, cameraBounds);
+    if (!color || color.a <= 128) return false;
+    return colorsMatch(color, HEATMAP_COLORS.DARK_GRAY, 2);
+  }
+
+  function isWallPixelScaled(x, y, data, state) {
+    return isWallPixel(x, y, data, state?.cameraBounds ?? null);
+  }
+
+  /**
+   * Check if a pixel is specifically ground (BLACK)
+   */
+  function isGroundPixel(x, y, data, cameraBounds = null) {
+    if (!data) return false;
+    const color = getPixelColor(x, y, data, cameraBounds);
+    if (!color || color.a <= 128) return false;
+    return colorsMatch(color, HEATMAP_COLORS.BLACK, 2);
+  }
+
+  function isGroundPixelScaled(x, y, data, state) {
+    return isGroundPixel(x, y, data, state?.cameraBounds ?? null);
   }
 
   // Walljump Heatmap Detection - Check for Green (#00FF00) color in bounce_wall.png
@@ -4704,8 +4793,12 @@ window.Physics = (() => {
             adjustedMusicTime = musicMs + beatOffset;
           } else {
             const stageStartTime = state.stageStartTime || 0;
-            const timeSinceStageStart = performance.now() / 1000 - stageStartTime;
-            adjustedMusicTime = Math.max(0, timeSinceStageStart * 1000 + beatOffset);
+            const timeSinceStageStart =
+              performance.now() / 1000 - stageStartTime;
+            adjustedMusicTime = Math.max(
+              0,
+              timeSinceStageStart * 1000 + beatOffset
+            );
           }
           const bpm = state.currentBPM || 120;
           const msPerBeat = 60000 / bpm;
@@ -4732,7 +4825,11 @@ window.Physics = (() => {
               )}ms`
             );
           }
-        } else if (anim.sync && window.AudioSystem && AudioSystem.getMusicTime) {
+        } else if (
+          anim.sync &&
+          window.AudioSystem &&
+          AudioSystem.getMusicTime
+        ) {
           // Legacy BPM-synced stage effect
           let musicMs = AudioSystem.getMusicTime() || 0;
           const bpm = state.currentBPM || 120;
@@ -4744,8 +4841,12 @@ window.Physics = (() => {
             phaseMs = (musicMs + (anim.sync.offsetMs || 0)) % loopMs;
           } else {
             const stageStartTime = state.stageStartTime || 0;
-            const timeSinceStageStart = performance.now() / 1000 - stageStartTime;
-            phaseMs = (Math.max(0, timeSinceStageStart * 1000) + (anim.sync.offsetMs || 0)) % loopMs;
+            const timeSinceStageStart =
+              performance.now() / 1000 - stageStartTime;
+            phaseMs =
+              (Math.max(0, timeSinceStageStart * 1000) +
+                (anim.sync.offsetMs || 0)) %
+              loopMs;
           }
           const t = phaseMs / loopMs; // 0..1
           const index = Math.floor(t * anim.frames.length) % anim.frames.length;
@@ -5424,7 +5525,7 @@ window.Physics = (() => {
     if (width !== stageW || height !== stageH) {
       console.warn(
         `[Dance Mode] Zone.png size mismatch! Heatmap: ${width}x${height}, Stage: ${stageW}x${stageH}. ` +
-        `Zone heatmap must match stage dimensions exactly. Spots may be positioned incorrectly.`
+          `Zone heatmap must match stage dimensions exactly. Spots may be positioned incorrectly.`
       );
     } else {
       console.log(
@@ -5508,7 +5609,11 @@ window.Physics = (() => {
             });
 
             console.log(
-              `[Dance Mode] Zone spot ${spots.length}: Heatmap(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) -> World(${worldX.toFixed(1)}, ${worldY.toFixed(1)})`
+              `[Dance Mode] Zone spot ${
+                spots.length
+              }: Heatmap(${centerX.toFixed(1)}, ${centerY.toFixed(
+                1
+              )}) -> World(${worldX.toFixed(1)}, ${worldY.toFixed(1)})`
             );
 
             if (spots.length >= 5) break; // Max 5 spots
@@ -5520,7 +5625,7 @@ window.Physics = (() => {
 
     console.log(
       `[Dance Mode] Zone.png: Found ${spots.length} spots using blob detection. ` +
-      `Heatmap: ${width}x${height}, Stage: ${stageW}x${stageH}`
+        `Heatmap: ${width}x${height}, Stage: ${stageW}x${stageH}`
     );
     state.danceMode.availableSpots = spots;
   }
@@ -5825,6 +5930,16 @@ window.Physics = (() => {
     }
     // Clear start log flag for new animation
     p._danceStartedLogged = false;
+
+    // FIX: Clear dance segment limits and frame duration flags to prevent animation locking/loops
+    // This ensures that switching from a dance animation (with segment limits) to a normal animation
+    // (like grab_active) resets the frame progression logic.
+    p._danceSegmentStart = undefined;
+    p._danceSegmentEnd = undefined;
+    p._danceSegmentJustCompleted = false;
+    p._danceSegmentGracePeriod = undefined;
+    p.useFrameDurations = false; // Default to false, AttackAnimationCatalog can override this
+
     // AttackAnimationCatalog override (per-frame durations/offsets like DanceCatalog)
     if (
       window.AttackAnimationCatalog &&
@@ -8139,6 +8254,148 @@ window.Physics = (() => {
         }`
       );
       state.camera._debugInitialized = true;
+    }
+
+    // NEW: Dance Spot Camera Focus - Highest Priority
+    // If dance mode is active and there's an active spot, focus camera on the spot
+    if (
+      state.danceMode?.active &&
+      state.danceMode.currentActiveSpot &&
+      state.danceMode.currentActiveSpot.pos
+    ) {
+      const spot = state.danceMode.currentActiveSpot;
+      const spotX = spot.pos.x;
+      const spotY = spot.pos.y;
+
+      const BASE_MAX_ZOOM = 2.03125;
+      const BASE_MIN_ZOOM = 1.0;
+      const stageWidthForPadding =
+        state.cameraBounds?.width ?? GameState.CONSTANTS.NATIVE_WIDTH;
+      const stageHeightForPadding =
+        state.cameraBounds?.height ?? GameState.CONSTANTS.NATIVE_HEIGHT;
+      const hasPaddingScale = !!(
+        state.cameraPaddingScale &&
+        typeof state.cameraPaddingScale.x === "number" &&
+        typeof state.cameraPaddingScale.y === "number"
+      );
+      const PADDING_X = hasPaddingScale
+        ? stageWidthForPadding * state.cameraPaddingScale.x
+        : 300;
+      const PADDING_Y = hasPaddingScale
+        ? stageHeightForPadding * state.cameraPaddingScale.y
+        : 200;
+      const SMOOTHING = 4.0;
+      const VERTICAL_OFFSET = state.cameraBounds?.height
+        ? -100 * (GameState.CONSTANTS.NATIVE_HEIGHT / state.cameraBounds.height)
+        : -100;
+
+      // Calculate zoom to show spot with some padding
+      // Also consider players if they're near the spot
+      const p1 = state.players[0];
+      const p2 = state.players.length > 1 ? state.players[1] : p1;
+
+      // Calculate distance from spot to players
+      const p1Dist = Math.hypot(p1.pos.x - spotX, p1.pos.y - spotY);
+      const p2Dist = Math.hypot(p2.pos.x - spotX, p2.pos.y - spotY);
+      const maxDist = Math.max(p1Dist, p2Dist);
+
+      // If players are far from spot, zoom out to show both spot and players
+      // If players are close, zoom in on spot area
+      const spotRadius = state.danceMode.beatMatchRadius ?? 400;
+      const effectiveRadius = Math.max(spotRadius, maxDist * 0.5);
+
+      const computedBoundsMinZoom = state.cameraBounds
+        ? Math.max(
+            GameState.CONSTANTS.NATIVE_WIDTH / state.cameraBounds.width,
+            GameState.CONSTANTS.NATIVE_HEIGHT / state.cameraBounds.height
+          )
+        : BASE_MIN_ZOOM;
+      const MIN_ZOOM = Math.max(
+        state.stageMinZoom ?? BASE_MIN_ZOOM,
+        computedBoundsMinZoom
+      );
+      const MAX_ZOOM = state.stageMaxZoom ?? BASE_MAX_ZOOM;
+
+      // Calculate zoom based on effective radius (spot + players)
+      const zoomX =
+        GameState.CONSTANTS.NATIVE_WIDTH /
+        (effectiveRadius * 2 + PADDING_X * 2);
+      const zoomY =
+        GameState.CONSTANTS.NATIVE_HEIGHT /
+        (effectiveRadius * 2 + PADDING_Y * 2);
+      let targetZoom = Math.min(zoomX, zoomY);
+      targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetZoom));
+
+      // Target position: center on spot
+      let targetX = spotX;
+      let targetY = spotY + VERTICAL_OFFSET;
+
+      // Apply bounds clamping
+      const viewWidth = GameState.CONSTANTS.NATIVE_WIDTH / targetZoom;
+      const viewHeight = GameState.CONSTANTS.NATIVE_HEIGHT / targetZoom;
+
+      if (state.cameraBounds) {
+        const bounds = state.cameraBounds;
+        let minX, maxX, minY, maxY;
+
+        if (viewWidth > bounds.width) {
+          minX = maxX = bounds.x + bounds.width / 2;
+        } else {
+          minX = bounds.x + viewWidth / 2;
+          maxX = bounds.x + bounds.width - viewWidth / 2;
+        }
+
+        if (viewHeight > bounds.height) {
+          minY = maxY = bounds.y + bounds.height / 2;
+        } else {
+          minY = bounds.y + viewHeight / 2;
+          maxY = bounds.y + bounds.height - viewHeight / 2;
+        }
+
+        targetX = Math.max(minX, Math.min(maxX, targetX));
+        targetY = Math.max(minY, Math.min(maxY, targetY));
+      } else {
+        targetX = Math.max(
+          viewWidth / 2,
+          Math.min(GameState.CONSTANTS.NATIVE_WIDTH - viewWidth / 2, targetX)
+        );
+        targetY = Math.max(
+          viewHeight / 2,
+          Math.min(GameState.CONSTANTS.NATIVE_HEIGHT - viewHeight / 2, targetY)
+        );
+      }
+
+      // Smooth camera movement to spot
+      const smoothFactor = 1 - Math.exp(-SMOOTHING * dt);
+      const desiredZoom = lerp(state.camera.zoom, targetZoom, smoothFactor);
+      const desiredX = lerp(state.camera.x, targetX, smoothFactor);
+      const desiredY = lerp(state.camera.y, targetY, smoothFactor);
+
+      // Apply rate limits
+      const maxTransPerSec =
+        (GameState.CONSTANTS.NATIVE_WIDTH / targetZoom) * 1.5;
+      const maxStep = maxTransPerSec * dt;
+      const dx = desiredX - state.camera.x;
+      const dy = desiredY - state.camera.y;
+      state.camera.x += Math.max(-maxStep, Math.min(maxStep, dx));
+      state.camera.y += Math.max(-maxStep, Math.min(maxStep, dy));
+
+      const maxZoomPerSec = state.cameraMaxZoomPerSec ?? 1.5;
+      const maxZoomStep = maxZoomPerSec * dt;
+      const dZ = desiredZoom - state.camera.zoom;
+      state.camera.zoom += Math.max(-maxZoomStep, Math.min(maxZoomStep, dZ));
+
+      if (state.debug?.cameraLogging) {
+        console.log(
+          `📷 Dance Spot Camera: spot=(${spotX.toFixed(1)}, ${spotY.toFixed(
+            1
+          )}), target=(${targetX.toFixed(1)}, ${targetY.toFixed(
+            1
+          )}), zoom=${state.camera.zoom.toFixed(3)}`
+        );
+      }
+
+      return; // Skip normal player-follow camera logic
     }
 
     const p1 = state.players[0];

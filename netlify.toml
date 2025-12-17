@@ -1,0 +1,53 @@
+# Netlify Configuration for Web Deployment
+# This configuration enables static hosting of the game
+
+[build]
+  # No build step needed - we're serving static files directly
+  publish = "."
+  command = "echo 'No build step needed - serving static files'"
+
+# Redirect all routes to index.html (useful for SPA routing if added later)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Environment variables (optional - can be set in Netlify dashboard)
+[build.environment]
+  NODE_VERSION = "18"
+
+# Headers for better caching and security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache static assets aggressively
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/levels/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Don't cache HTML
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+

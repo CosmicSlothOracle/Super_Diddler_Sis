@@ -1,7 +1,7 @@
 window.DanceSpotManager = (() => {
   // Configuration
   const SPOT_CHANGE_BARS = 16; // Change spot every 16 bars
-  const MAX_FADE_DISTANCE = 800; // Distance where music is fully silent (Outer Radius)
+  const MAX_FADE_DISTANCE = 600; // Distance where music is fully silent (Outer Radius)
   const MIN_FADE_DISTANCE = 150; // Distance where music is max volume (Inner Radius)
   const CENTER_FADE_DISTANCE = 75; // NEW: Distance for Bloom Effect (Center Radius)
   const UI_VISIBLE_THRESHOLD = 0.1; // Alpha threshold to show UI
@@ -158,12 +158,26 @@ window.DanceSpotManager = (() => {
 
     // 2. Calculate Intensity based on Distance to Active Spot
     const activeSpot = state.danceMode.currentActiveSpot;
-    if (!activeSpot) return;
+    if (!activeSpot) {
+      for (const p of state.players) {
+        if (p.danceSpotDirection) delete p.danceSpotDirection;
+      }
+      return;
+    }
+
+    activeSpot.playerIntensities = {};
+    activeSpot.playerVectors = {};
+    activeSpot.playerWorldPositions = {};
+    activeSpot.p1RingIntensity = 0;
+    activeSpot.p2RingIntensity = 0;
 
     let maxIntensity = 0.0;
 
     for (const p of state.players) {
-      if (p.eliminated) continue;
+      if (p.eliminated) {
+        if (p.danceSpotDirection) delete p.danceSpotDirection;
+        continue;
+      }
 
       // Get player feet position
       const pHb = Renderer.getHurtbox(p);
@@ -203,6 +217,42 @@ window.DanceSpotManager = (() => {
       p.danceZoneIntensity = intensity;
       p.danceZoneSaturation = saturation;
       p.danceZoneBloom = bloom;
+
+      const resolvedIndex =
+        typeof p.padIndex === "number" && p.padIndex >= 0
+          ? p.padIndex
+          : state.players.indexOf(p);
+      const playerIndex = resolvedIndex >= 0 ? resolvedIndex : 0;
+      const dirX =
+        dist > 0.001 ? (activeSpot.pos.x - pX) / dist : 0;
+      const dirY =
+        dist > 0.001 ? (activeSpot.pos.y - pY) / dist : 0;
+
+      activeSpot.playerIntensities[playerIndex] = intensity;
+      activeSpot.playerVectors[playerIndex] = {
+        dx: dirX,
+        dy: dirY,
+        distance: dist,
+        intensity,
+      };
+      activeSpot.playerWorldPositions[playerIndex] = { x: pX, y: pY };
+
+      if (playerIndex === 0) {
+        activeSpot.p1RingIntensity = intensity;
+      } else if (playerIndex === 1) {
+        activeSpot.p2RingIntensity = intensity;
+      }
+
+      if (intensity > 0.05) {
+        p.danceSpotDirection = {
+          dx: dirX,
+          dy: dirY,
+          distance: dist,
+          intensity,
+        };
+      } else if (p.danceSpotDirection) {
+        delete p.danceSpotDirection;
+      }
 
       if (intensity > maxIntensity) maxIntensity = intensity;
     }

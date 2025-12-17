@@ -1997,228 +1997,137 @@ window.UIComponents = (() => {
     return lines;
   }
 
-  // NEW: Render Tutorial Instruction Panel
-  function renderTutorialInstructionPanel(ctx, state) {
-    // Part 2 and Part 3 don't use instruction panel - skip it (use modal system instead)
-    if (state.tutorial?.part === 2 || state.tutorial?.part === 3) {
-      return;
+  // NEW: Unified Tutorial Modal (replaces all old tutorial UI)
+  function renderTutorialModal(ctx, state) {
+    // Delegate to the unified modal renderer
+    if (window.renderTutorialModal) {
+      window.renderTutorialModal(ctx, state);
     }
-
-    // Only show panel in tutorial stages (pvp_stage_2, pvp_stage_3)
-    const isTutorialStage =
-      state.currentStagePath?.includes("pvp_stage_2") ||
-      state.currentStagePath?.includes("pvp_stage_3");
-    if (!state.tutorial?.active || !isTutorialStage) {
-      return;
-    }
-
-    if (!state.tutorial.instructionPanel?.visible) {
-      return;
-    }
-
-    const panel = state.tutorial.instructionPanel;
-    const canvasWidth = ctx.canvas.width;
-    const canvasHeight = ctx.canvas.height;
-
-    // Panel dimensions
-    const panelWidth = 800;
-    const panelX = (canvasWidth - panelWidth) / 2;
-    const panelY = 40; // 40px from top (moved from bottom)
-    const horizontalPadding = 32;
-    const verticalPadding = 28;
-    const textAreaWidth = panelWidth - horizontalPadding * 2;
-
-    const sections = [
-      {
-        text: panel.currentText || "",
-        font: "bold 28px monospace",
-        color: "#FFFFFF",
-        lineHeight: 34,
-        gapAfter: 12,
-      },
-      {
-        text: panel.detailText || "",
-        font: "20px monospace",
-        color: "rgba(255, 255, 255, 0.85)",
-        lineHeight: 26,
-        gapAfter: 10,
-      },
-      {
-        text: panel.progressText || "",
-        font: "18px monospace",
-        color: "#00D1FF",
-        lineHeight: 24,
-        gapAfter: 0,
-      },
-    ];
-
-    let totalTextHeight = 0;
-    sections.forEach((section) => {
-      if (!section.text) {
-        section.lines = [];
-        return;
-      }
-      ctx.font = section.font;
-      section.lines = wrapTextLines(ctx, section.text, textAreaWidth);
-      if (section.lines.length === 0) return;
-      totalTextHeight += section.lines.length * section.lineHeight;
-      totalTextHeight += section.gapAfter;
-    });
-    if (totalTextHeight > 0) {
-      totalTextHeight -= sections[sections.length - 1].gapAfter;
-    }
-
-    const panelHeight = Math.max(180, totalTextHeight + verticalPadding * 2);
-
-    // Background with transparency
-    ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-    ctx.lineWidth = 2;
-    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
-    ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    let cursorY = panelY + verticalPadding;
-    sections.forEach((section) => {
-      if (!section.lines || section.lines.length === 0) {
-        return;
-      }
-      ctx.font = section.font;
-      ctx.fillStyle = section.color;
-      section.lines.forEach((line) => {
-        if (line === "") {
-          cursorY += section.lineHeight * 0.6;
-        } else {
-          ctx.fillText(line, panelX + panelWidth / 2, cursorY);
-          cursorY += section.lineHeight;
-        }
-      });
-      cursorY += section.gapAfter;
-    });
-
-    // Progress bar (if applicable)
-    const progressText = panel.progressText || "";
-    if (progressText && progressText.includes("/")) {
-      const match = progressText.match(/(\d+)\/(\d+)/);
-      if (match) {
-        const current = parseInt(match[1]);
-        const total = parseInt(match[2]);
-        const progress = Math.min(1, current / total);
-
-        const barWidth = panelWidth - 80;
-        const barHeight = 8;
-        const barX = panelX + 40;
-        const barY = panelY + panelHeight - 40;
-
-        // Background bar
-        ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-        // Progress bar
-        ctx.fillStyle = "#00D1FF";
-        ctx.fillRect(barX, barY, barWidth * progress, barHeight);
-      }
-    }
-
-    ctx.restore();
   }
 
-  // NEW: Tutorial Part 1 modal panel (cream, typewriter feel, auto-closes)
-  function renderTutorialPartOneModal(ctx, state) {
-    const modalLines =
-      window.TutorialSystem?.getPartOneModalDisplayLines?.(state) || [];
-    if (!modalLines.length) return;
+  /**
+   * Render text with markdown-style formatting: **bold**, *italic*, and color tags
+   * Color tags: [[keyboard:W]], [[controller:R3]], [[action:Dance]]
+   * Returns array of segments with styling info
+   */
+  function parseFormattedText(text) {
+    const segments = [];
+    let remaining = text;
+    let pos = 0;
 
-    const canvasWidth = ctx.canvas.width;
-    const centerX = canvasWidth / 2;
-    const panelWidth = 780;
-    const panelX = centerX - panelWidth / 2;
-    const panelY = 42;
+    while (remaining.length > 0) {
+      // Find earliest formatting marker
+      const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+      const italicMatch = remaining.match(/\*([^*]+)\*/);
+      const keyboardMatch = remaining.match(/\[\[keyboard:([^\]]+)\]\]/);
+      const controllerMatch = remaining.match(/\[\[controller:([^\]]+)\]\]/);
+      const actionMatch = remaining.match(/\[\[action:([^\]]+)\]\]/);
 
-    const horizontalPadding = 36;
-    const verticalPadding = 30;
-    const lineHeight = 34;
-    ctx.save();
-    ctx.font = "600 26px Courier New, monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
+      let match = null;
+      let type = null;
+      let matchIndex = remaining.length;
 
-    const textWidth = panelWidth - horizontalPadding * 2;
-    const renderedLines = [];
-    modalLines.forEach((line) => {
-      const snippet = line || "";
-      const wrapped = wrapTextLines(ctx, snippet, textWidth);
-      if (wrapped.length === 0) {
-        renderedLines.push("");
-      } else {
-        renderedLines.push(...wrapped);
+      if (boldMatch && boldMatch.index < matchIndex) {
+        match = boldMatch;
+        type = "bold";
+        matchIndex = boldMatch.index;
       }
+      if (italicMatch && italicMatch.index < matchIndex) {
+        match = italicMatch;
+        type = "italic";
+        matchIndex = italicMatch.index;
+      }
+      if (keyboardMatch && keyboardMatch.index < matchIndex) {
+        match = keyboardMatch;
+        type = "keyboard";
+        matchIndex = keyboardMatch.index;
+      }
+      if (controllerMatch && controllerMatch.index < matchIndex) {
+        match = controllerMatch;
+        type = "controller";
+        matchIndex = controllerMatch.index;
+      }
+      if (actionMatch && actionMatch.index < matchIndex) {
+        match = actionMatch;
+        type = "action";
+        matchIndex = actionMatch.index;
+      }
+
+      if (match) {
+        // Add text before match
+        if (matchIndex > 0) {
+          segments.push({
+            text: remaining.substring(0, matchIndex),
+            style: "normal",
+          });
+        }
+        // Add formatted text
+        segments.push({
+          text: match[1],
+          style: type,
+        });
+        // Continue after match
+        remaining = remaining.substring(matchIndex + match[0].length);
+      } else {
+        // No more formatting, add rest
+        if (remaining.length > 0) {
+          segments.push({
+            text: remaining,
+            style: "normal",
+          });
+        }
+        break;
+      }
+    }
+
+    return segments.length > 0 ? segments : [{ text: text, style: "normal" }];
+  }
+
+  /**
+   * Draw formatted text (supports **bold** and *italic*)
+   */
+  function drawFormattedText(ctx, text, x, y, baseFont, baseColor = "#050505") {
+    const segments = parseFormattedText(text);
+    let currentX = x;
+
+    ctx.save();
+    segments.forEach((segment) => {
+      // Set font style and color
+      if (segment.style === "bold") {
+        // Increase font weight for bold
+        ctx.font = baseFont.replace(/(\d+)/, (match) =>
+          String(Math.max(600, parseInt(match)))
+        );
+        ctx.fillStyle = baseColor;
+      } else if (segment.style === "italic") {
+        // Add italic style
+        ctx.font = baseFont.replace(/(\d+px)/, "$1 italic");
+        ctx.fillStyle = baseColor;
+      } else if (segment.style === "keyboard") {
+        ctx.font = baseFont.replace(/(\d+)/, (match) =>
+          String(Math.max(600, parseInt(match)))
+        );
+        ctx.fillStyle = "#20B2AA"; // Teal
+      } else if (segment.style === "controller") {
+        ctx.font = baseFont.replace(/(\d+)/, (match) =>
+          String(Math.max(600, parseInt(match)))
+        );
+        ctx.fillStyle = "#4169E1"; // Blue
+      } else if (segment.style === "action") {
+        ctx.font = baseFont.replace(/(\d+)/, (match) =>
+          String(Math.max(600, parseInt(match)))
+        );
+        ctx.fillStyle = "#FF8C00"; // Orange
+        ctx.globalAlpha *= 0.92;
+      } else {
+        ctx.font = baseFont;
+        ctx.fillStyle = baseColor;
+      }
+
+      ctx.fillText(segment.text, currentX, y);
+      currentX += ctx.measureText(segment.text).width;
+      ctx.globalAlpha = 1;
     });
-
-    const contentHeight =
-      Math.max(renderedLines.length, 1) * lineHeight + verticalPadding * 2;
-    const panelHeight = Math.max(220, contentHeight + 12);
-
-    // Outer border stack
-    const outerRadius = 28;
-    drawRoundedRect(
-      ctx,
-      panelX - 18,
-      panelY - 18,
-      panelWidth + 36,
-      panelHeight + 36,
-      outerRadius
-    );
-    ctx.fillStyle = "#020202";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX - 10,
-      panelY - 10,
-      panelWidth + 20,
-      panelHeight + 20,
-      outerRadius - 6
-    );
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.fillStyle = "#F5EFE3";
-    ctx.fill();
-
-    ctx.strokeStyle = "#050505";
-    ctx.lineWidth = 1.2;
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.stroke();
-
-    // Draw text
-    const textStartX = panelX + horizontalPadding;
-    let cursorY = panelY + verticalPadding;
-    ctx.fillStyle = "#050505";
-    renderedLines.forEach((line) => {
-      const safeLine = line || "";
-      ctx.fillText(safeLine, textStartX, cursorY);
-      cursorY += lineHeight;
-    });
-
-    // Part 1 modal auto-closes, no confirmation hint needed
     ctx.restore();
   }
 
@@ -2226,10 +2135,19 @@ window.UIComponents = (() => {
    * Draw text with highlighted keywords
    * Keywords are rendered in their specified color with a subtle glow
    */
-  function drawHighlightedText(ctx, text, x, y, highlightKeywords) {
+  function drawHighlightedText(
+    ctx,
+    text,
+    x,
+    y,
+    highlightKeywords,
+    baseFont = "500 24px 'Inter', system-ui, sans-serif",
+    baseColor = "rgba(20, 15, 10, 0.95)"
+  ) {
     ctx.save();
     let currentX = x;
     let remaining = text;
+    ctx.font = baseFont;
 
     while (remaining.length > 0) {
       // Find the earliest keyword in remaining text
@@ -2250,7 +2168,7 @@ window.UIComponents = (() => {
         // Draw text before the keyword (normal color)
         if (earliestIndex > 0) {
           const beforeText = remaining.substring(0, earliestIndex);
-          ctx.fillStyle = "#050505";
+          ctx.fillStyle = baseColor;
           ctx.fillText(beforeText, currentX, y);
           currentX += ctx.measureText(beforeText).width;
         }
@@ -2259,8 +2177,10 @@ window.UIComponents = (() => {
         ctx.save();
         ctx.fillStyle = highlightKeywords[matchedKeyword];
         ctx.shadowColor = highlightKeywords[matchedKeyword];
-        ctx.shadowBlur = 8;
-        ctx.font = "700 26px Courier New, monospace"; // Bold for emphasis
+        ctx.shadowBlur = 12;
+        ctx.font = baseFont.replace(/\d+/, (w) =>
+          String(Math.max(700, parseInt(w)))
+        );
         ctx.fillText(earliestMatch, currentX, y);
         ctx.restore();
 
@@ -2268,318 +2188,12 @@ window.UIComponents = (() => {
         remaining = remaining.substring(earliestIndex + earliestMatch.length);
       } else {
         // No more keywords, draw remaining text normally
-        ctx.fillStyle = "#050505";
+        ctx.fillStyle = baseColor;
         ctx.fillText(remaining, currentX, y);
         break;
       }
     }
 
-    ctx.restore();
-  }
-
-  // NEW: Tutorial Part 2 modal panel (cream, typewriter feel)
-  function renderTutorialPartTwoModal(ctx, state) {
-    const modalLines =
-      window.TutorialSystem?.getPartTwoModalDisplayLines?.(state) || [];
-    if (!modalLines.length) return;
-
-    const canvasWidth = ctx.canvas.width;
-    const canvasHeight = ctx.canvas.height;
-    const centerX = canvasWidth / 2;
-    const panelWidth = 780;
-    const panelX = centerX - panelWidth / 2;
-
-    // Check if UI highlight is active (Page 1 - UI explanation)
-    const isUIExplanation = window.TutorialSystem?.isUIHighlightActive?.(state);
-
-    // Position panel at top center (UI explanation needs to show UI elements below)
-    const panelY = 42;
-
-    // NEW: Dark overlay for game field during UI explanation
-    if (isUIExplanation) {
-      ctx.save();
-      // Dark overlay on lower portion (game field), but NOT on top UI
-      const uiAreaHeight = 120; // Approximate height of top UI area
-      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-      ctx.fillRect(0, uiAreaHeight, canvasWidth, canvasHeight - uiAreaHeight);
-      ctx.restore();
-    }
-
-    const horizontalPadding = 36;
-    const verticalPadding = 30;
-    const lineHeight = 34;
-    ctx.save();
-    ctx.font = "600 26px Courier New, monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-
-    const textWidth = panelWidth - horizontalPadding * 2;
-    const renderedLines = [];
-    modalLines.forEach((line) => {
-      const snippet = line || "";
-      const wrapped = wrapTextLines(ctx, snippet, textWidth);
-      if (wrapped.length === 0) {
-        renderedLines.push("");
-      } else {
-        renderedLines.push(...wrapped);
-      }
-    });
-
-    const contentHeight =
-      Math.max(renderedLines.length, 1) * lineHeight + verticalPadding * 2;
-    const panelHeight = Math.max(220, contentHeight + 12);
-
-    // Outer border stack
-    const outerRadius = 28;
-    drawRoundedRect(
-      ctx,
-      panelX - 18,
-      panelY - 18,
-      panelWidth + 36,
-      panelHeight + 36,
-      outerRadius
-    );
-    ctx.fillStyle = "#020202";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX - 10,
-      panelY - 10,
-      panelWidth + 20,
-      panelHeight + 20,
-      outerRadius - 6
-    );
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.fillStyle = "#F5EFE3";
-    ctx.fill();
-
-    ctx.strokeStyle = "#050505";
-    ctx.lineWidth = 1.2;
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.stroke();
-
-    // Draw text with highlighted keywords during UI explanation
-    const textStartX = panelX + horizontalPadding;
-    let cursorY = panelY + verticalPadding;
-
-    // Keyword highlighting for UI explanation
-    const highlightKeywords = isUIExplanation
-      ? {
-          percentage: "#FF4444", // Red - damage percentage
-          hearts: "#FF6B9D", // Pink - lives/hearts
-          "Ultimate bar": "#FFD700", // Gold - ultimate meter
-        }
-      : {};
-
-    renderedLines.forEach((line) => {
-      const safeLine = line || "";
-
-      if (isUIExplanation && Object.keys(highlightKeywords).length > 0) {
-        // Render line with highlighted keywords
-        drawHighlightedText(
-          ctx,
-          safeLine,
-          textStartX,
-          cursorY,
-          highlightKeywords
-        );
-      } else {
-        ctx.fillStyle = "#050505";
-        ctx.fillText(safeLine, textStartX, cursorY);
-      }
-      cursorY += lineHeight;
-    });
-
-    // Confirmation hint (only show when typing is complete)
-    const modal = state.tutorial?.part2?.modal;
-    if (modal?.completed) {
-      ctx.font = "500 18px Courier New, monospace";
-      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-      ctx.fillText(
-        "Press X to continue",
-        textStartX,
-        panelY + panelHeight - 24
-      );
-    } else {
-      // Typing hint
-      ctx.font = "500 18px Courier New, monospace";
-      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.fillText(
-        "The line is typing itself - hold still",
-        textStartX,
-        panelY + panelHeight - 24
-      );
-    }
-
-    ctx.restore();
-  }
-
-  // NEW: Tutorial Part 3 modal panel (same design as Part 2)
-  function renderTutorialPartThreeModal(ctx, state) {
-    const modalLines =
-      window.TutorialSystem?.getPartThreeModalDisplayLines?.(state) || [];
-    if (!modalLines.length) return;
-
-    const canvasWidth = ctx.canvas.width;
-    const centerX = canvasWidth / 2;
-    const panelWidth = 780;
-    const panelX = centerX - panelWidth / 2;
-    const panelY = 42;
-
-    const horizontalPadding = 36;
-    const verticalPadding = 30;
-    const lineHeight = 34;
-    ctx.save();
-    ctx.font = "600 26px Courier New, monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-
-    const textWidth = panelWidth - horizontalPadding * 2;
-    const renderedLines = [];
-    modalLines.forEach((line) => {
-      const snippet = line || "";
-      const wrapped = wrapTextLines(ctx, snippet, textWidth);
-      if (wrapped.length === 0) {
-        renderedLines.push("");
-      } else {
-        renderedLines.push(...wrapped);
-      }
-    });
-
-    const contentHeight =
-      Math.max(renderedLines.length, 1) * lineHeight + verticalPadding * 2;
-    const panelHeight = Math.max(220, contentHeight + 12);
-
-    // Outer border stack (same as Part 2)
-    const outerRadius = 28;
-    drawRoundedRect(
-      ctx,
-      panelX - 18,
-      panelY - 18,
-      panelWidth + 36,
-      panelHeight + 36,
-      outerRadius
-    );
-    ctx.fillStyle = "#020202";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX - 10,
-      panelY - 10,
-      panelWidth + 20,
-      panelHeight + 20,
-      outerRadius - 6
-    );
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.fillStyle = "#F5EFE3";
-    ctx.fill();
-
-    ctx.strokeStyle = "#050505";
-    ctx.lineWidth = 1.2;
-    drawRoundedRect(
-      ctx,
-      panelX,
-      panelY,
-      panelWidth,
-      panelHeight,
-      outerRadius - 10
-    );
-    ctx.stroke();
-
-    // Draw text
-    const textStartX = panelX + horizontalPadding;
-    let cursorY = panelY + verticalPadding;
-    ctx.fillStyle = "#050505";
-    renderedLines.forEach((line) => {
-      const safeLine = line || "";
-      ctx.fillText(safeLine, textStartX, cursorY);
-      cursorY += lineHeight;
-    });
-
-    // Confirmation hint (only show when typing is complete)
-    const modal = state.tutorial?.part3?.modal;
-    if (modal?.completed) {
-      ctx.font = "500 18px Courier New, monospace";
-      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-      ctx.fillText(
-        "Drücke Enter oder A-Button zum Fortfahren",
-        textStartX,
-        panelY + panelHeight - 24
-      );
-    } else {
-      // Typing hint
-      ctx.font = "500 18px Courier New, monospace";
-      ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      ctx.fillText(
-        "Die Zeile schreibt sich selbst – bleib kurz stehen",
-        textStartX,
-        panelY + panelHeight - 24
-      );
-    }
-
-    ctx.restore();
-  }
-
-  function renderTutorialPartTwoTip(ctx, state) {
-    const part2 = state.tutorial?.part2;
-    if (!part2?.tipMessage || part2.tipTimer <= 0) return;
-
-    const duration = Math.max(activePart.tipDuration, 0.1);
-    const alpha = Math.min(1, Math.max(0, activePart.tipTimer / duration));
-    if (alpha <= 0) return;
-
-    const text = activePart.tipMessage;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = "500 20px Courier New, monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const measured = ctx.measureText(text).width;
-    const width = Math.min(480, measured + 48);
-    const height = 44;
-    const centerX = ctx.canvas.width / 2;
-    const x = centerX - width / 2;
-    const y = 12;
-
-    drawRoundedRect(ctx, x, y, width, height, 16);
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
-    ctx.lineWidth = 1.2;
-    drawRoundedRect(ctx, x, y, width, height, 16);
-    ctx.stroke();
-
-    ctx.fillStyle = "#111111";
-    ctx.fillText(text, centerX, y + height / 2);
     ctx.restore();
   }
 
@@ -2591,13 +2205,9 @@ window.UIComponents = (() => {
     renderGameTypeSelect,
     renderGameModeSelect,
     renderDanceBattle,
-    renderTutorialPartOneModal,
-    renderTutorialPartTwoModal,
-    renderTutorialPartTwoTip,
-    renderTutorialPartThreeModal,
+    renderTutorialModal,
     renderInGameModal,
     renderControlsModal,
-    renderTutorialInstructionPanel,
     setTheme,
     getTheme,
     themes: uiThemes,

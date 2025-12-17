@@ -6,6 +6,33 @@ window.Renderer = (() => {
   const spriteCache = new Map();
   const MAX_CACHE_SIZE = 100; // Maximale Anzahl gecachter Sprites
 
+  const PLAYER_OUTLINE_COLORS = [
+    {
+      rgb: [98, 176, 255],
+      stroke: "rgba(98, 176, 255, 1)",
+      glow: "rgba(98, 176, 255, 0.85)",
+      fill: "rgba(98, 176, 255, 0.18)",
+    },
+    {
+      rgb: [255, 109, 109],
+      stroke: "rgba(255, 109, 109, 1)",
+      glow: "rgba(255, 109, 109, 0.85)",
+      fill: "rgba(255, 109, 109, 0.18)",
+    },
+    {
+      rgb: [154, 107, 255],
+      stroke: "rgba(154, 107, 255, 1)",
+      glow: "rgba(154, 107, 255, 0.85)",
+      fill: "rgba(154, 107, 255, 0.18)",
+    },
+    {
+      rgb: [255, 216, 107],
+      stroke: "rgba(255, 216, 107, 1)",
+      glow: "rgba(255, 216, 107, 0.85)",
+      fill: "rgba(255, 216, 107, 0.18)",
+    },
+  ];
+
   // Font-Cache f�r Performance-Optimierung
   // Verhindert unn�tige Font-Set-Operationen die zu Stuttern f�hren
   let currentFont = null;
@@ -235,7 +262,8 @@ window.Renderer = (() => {
     if (state.useTiles && state.midTiles && state.midTiles.length > 0) {
       drawTiles(ctx, state.midTiles, state.tileWidth, state.camera);
     } else {
-      drawLayer(ctx, state.mid);
+      // NEW: Draw mid layer with beat-synchronized technicolor pulse effect
+      drawMidLayerWithBeatPulse(ctx, state.mid, state);
     }
 
     // Wall highlight removed for performance
@@ -272,13 +300,7 @@ window.Renderer = (() => {
     // Ingame UI rendern
     drawIngameUI(ctx, state);
 
-    // NEW: Tutorial Instruction Panel
-    if (
-      window.UIComponents &&
-      window.UIComponents.renderTutorialInstructionPanel
-    ) {
-      window.UIComponents.renderTutorialInstructionPanel(ctx, state);
-    }
+    // Tutorial instruction panel removed - using unified modal system instead
 
     // WebGL Disco-Ball Licht-Effekt
     applyDiscoBallLight(ctx, state);
@@ -431,6 +453,136 @@ window.Renderer = (() => {
     if (isDrawableImage || isVideo || isBitmap) {
       ctx.drawImage(source, 0, 0, destWidth, destHeight);
     }
+  }
+
+  // NEW: Calculate beat phase (0-1) for beat-synchronized effects
+  function getBeatPhase(state) {
+    const bpm = state.currentBPM || 117;
+    const beatInterval = 60000 / bpm; // ms per beat
+    const beatOffset = state?.currentBeatOffset || 0;
+    let adjustedMusicTime = 0;
+
+    // Use unified audio-based timing system
+    if (AudioSystem && AudioSystem.getMusicTime) {
+      const audioTime = AudioSystem.getMusicTime();
+      adjustedMusicTime = Math.max(0, audioTime + beatOffset);
+    } else {
+      // Fallback to system time
+      const stageStartTime = state?.stageStartTime || 0;
+      const timeSinceStageStart = performance.now() / 1000 - stageStartTime;
+      adjustedMusicTime = Math.max(0, timeSinceStageStart * 1000 + beatOffset);
+    }
+
+    const timeSinceLastBeat = adjustedMusicTime % beatInterval;
+    return timeSinceLastBeat / beatInterval; // 0-1
+  }
+
+  // NEW: Draw mid layer with beat-synchronized technicolor pulse effect
+  function drawMidLayerWithBeatPulse(ctx, element, state, dimensions) {
+    if (!element) return;
+
+    const source = element._bitmap || element;
+    const fallbackWidth =
+      element?.width || element?.naturalWidth || source?.width || 0;
+    const fallbackHeight =
+      element?.height || element?.naturalHeight || source?.height || 0;
+    const destWidth = dimensions ? dimensions.width : fallbackWidth;
+    const destHeight = dimensions ? dimensions.height : fallbackHeight;
+
+    const isDrawableImage =
+      typeof HTMLImageElement !== "undefined" &&
+      element instanceof HTMLImageElement;
+    const isVideo =
+      typeof HTMLVideoElement !== "undefined" &&
+      element instanceof HTMLVideoElement;
+    const isBitmap =
+      typeof ImageBitmap !== "undefined" && source instanceof ImageBitmap;
+
+    if (!isDrawableImage && !isVideo && !isBitmap) return;
+
+    // Calculate beat phase for pulse effect
+    const beatPhase = getBeatPhase(state);
+
+    // Beat pulse: strongest at beat match point (beatPhase = 0)
+    // Create a pulse that peaks at beat match and fades smoothly
+    // Use cosine to create a pulse that peaks at 0 and 1 (beat match points)
+    const beatPulse = Math.cos(beatPhase * Math.PI * 2);
+    const normalizedPulse = beatPulse * 0.5 + 0.5; // 0-1, peaks at beatPhase = 0 and 1
+
+    // Intensity: stronger pulse near beat match (beatPhase close to 0 or 1)
+    // Create a sharper peak at beat match for better visual feedback
+    const beatMatchProximity = 1.0 - Math.min(beatPhase, 1.0 - beatPhase) * 2.0; // 0-1, peaks at beat match
+    const sharpPeak = Math.pow(beatMatchProximity, 0.7); // Sharper peak near beat match
+    const pulseIntensity = 0.4 + sharpPeak * 0.5; // 0.4-0.9 intensity range
+
+    // Technicolor effect intensity based on beat pulse
+    // Combine normalized pulse with intensity for smooth, beat-synchronized effect
+    const technicolorIntensity = normalizedPulse * pulseIntensity;
+
+    ctx.save();
+
+    // Apply technicolor effect using canvas filters and composite operations
+    // Chromatic aberration simulation: draw RGB channels with slight offsets
+    if (technicolorIntensity > 0.01) {
+      // Red channel offset (slight right shift)
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = technicolorIntensity * 0.3;
+      ctx.filter = "brightness(1.2) saturate(1.5)";
+      ctx.drawImage(
+        source,
+        1,
+        0,
+        destWidth,
+        destHeight,
+        0,
+        0,
+        destWidth,
+        destHeight
+      );
+
+      // Blue channel offset (slight left shift)
+      ctx.globalAlpha = technicolorIntensity * 0.3;
+      ctx.drawImage(
+        source,
+        -1,
+        0,
+        destWidth,
+        destHeight,
+        0,
+        0,
+        destWidth,
+        destHeight
+      );
+
+      // Green channel (center, no offset)
+      ctx.globalAlpha = technicolorIntensity * 0.2;
+      ctx.drawImage(
+        source,
+        0,
+        0,
+        destWidth,
+        destHeight,
+        0,
+        0,
+        destWidth,
+        destHeight
+      );
+
+      // Reset composite operation
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = 1.0;
+      ctx.filter = "none";
+    }
+
+    // Draw base layer with saturation boost
+    if (technicolorIntensity > 0.01) {
+      const saturationBoost = 1.0 + technicolorIntensity * 0.5; // Up to 1.5x saturation
+      ctx.filter = `saturate(${saturationBoost})`;
+    }
+
+    ctx.drawImage(source, 0, 0, destWidth, destHeight);
+
+    ctx.restore();
   }
 
   // NEW: Draw tiles for scrollable story stages
@@ -633,9 +785,135 @@ window.Renderer = (() => {
       ctx.drawImage(texture, srcX, srcY, srcW, srcH, x, y, w, h);
     }
 
+    if (state.danceMode?.active) {
+      renderDanceSpotIndicators(ctx, state);
+    }
+
     if (window.PerformanceMonitor?.isEnabled) {
       window.PerformanceMonitor.endSection("StageAnimations");
     }
+  }
+
+  function renderDanceSpotIndicators(ctx, state) {
+    const spot = state.danceMode?.currentActiveSpot;
+    if (!spot?.pos) return;
+
+    const intensities = spot.playerIntensities || {};
+    const centerX = spot.pos.x;
+    const centerY = spot.pos.y;
+    const beatPhase = getBeatPhase(state);
+    const beatPulse = Math.sin(beatPhase * Math.PI * 2);
+    const pulseFactor = 1 + beatPulse * 0.04;
+
+    // Dance Zone Constants (matching dance-spot-manager.js)
+    const MIN_FADE_DISTANCE = 150; // Inner radius - max volume zone
+    const MAX_FADE_DISTANCE = 600; // Outer radius - silent zone
+
+    // Check if we're in the perfect beat window
+    const BPM = state.currentBPM || 117;
+    const BEAT_INTERVAL = 60000 / BPM;
+    const beatOffset = state.currentBeatOffset || 0;
+    const PERFECT_WINDOW = BEAT_INTERVAL * 0.24; // 24% of beat interval for perfect window
+
+    let adjustedTime = 0;
+    let audioTime = 0;
+    if (window.AudioSystem && window.AudioSystem.getMusicTime) {
+      audioTime = window.AudioSystem.getMusicTime() || 0;
+    }
+    if (audioTime > 0) {
+      adjustedTime = Math.max(0, audioTime + beatOffset);
+    } else {
+      const stageStartTime = state.stageStartTime || 0;
+      const timeSinceStageStart = performance.now() / 1000 - stageStartTime;
+      adjustedTime = Math.max(0, timeSinceStageStart * 1000 + beatOffset);
+    }
+
+    const timeSinceLastBeat = adjustedTime % BEAT_INTERVAL;
+    const isInBeatWindow =
+      timeSinceLastBeat < PERFECT_WINDOW ||
+      timeSinceLastBeat > BEAT_INTERVAL - PERFECT_WINDOW;
+
+    const rings = state.players.map((_, index) => ({
+      playerIndex: index,
+      baseRadius: 110 + index * 60,
+      baseWidth: 5 + index * 1.5,
+    }));
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+
+    // 1. INNER RINGS (DanceBot-Ringe)
+    for (const ring of rings) {
+      const intensity = Math.max(
+        0,
+        Math.min(1, intensities[ring.playerIndex] || 0)
+      );
+
+      // Blue Ring (P1, index 0): Only visible during beat window
+      // Red Ring (P2, index 1): Always visible for orientation
+      if (ring.playerIndex === 0 && !isInBeatWindow) {
+        continue; // Skip blue ring when not in beat window
+      }
+
+      // Use minimum visibility when no player is nearby, scale up with intensity
+      const minAlpha = 0.15; // Minimum alpha when no player nearby
+      const maxAlpha = 0.45; // Maximum alpha when player is in zone
+      const effectiveIntensity = Math.max(0.1, intensity); // Ensure minimum visibility
+
+      const palette =
+        PLAYER_OUTLINE_COLORS[ring.playerIndex % PLAYER_OUTLINE_COLORS.length];
+      const rgb = palette.rgb || [255, 255, 255];
+      const auraInner = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${
+        minAlpha + (maxAlpha - minAlpha) * effectiveIntensity
+      })`;
+      const auraOuter = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0)`;
+      const radius = (ring.baseRadius + effectiveIntensity * 32) * pulseFactor;
+
+      const gradient = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        Math.max(10, radius * 0.3),
+        centerX,
+        centerY,
+        radius
+      );
+      gradient.addColorStop(0, auraInner);
+      gradient.addColorStop(1, auraOuter);
+
+      ctx.globalAlpha = minAlpha + (maxAlpha - minAlpha) * effectiveIntensity;
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.3 + 0.5 * effectiveIntensity;
+      ctx.lineWidth = ring.baseWidth + effectiveIntensity * 4;
+      ctx.strokeStyle = palette.stroke;
+      ctx.shadowColor = palette.glow;
+      ctx.shadowBlur = 20 + effectiveIntensity * 40;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // 2. OUTER RING - Boundary at MAX_FADE_DISTANCE (600px)
+    // This marks the boundary between "beatmatch with low bonuses possible" and "no beatmatch possible"
+    // Pulsates with beat like the other rings
+    ctx.globalCompositeOperation = "source-over"; // Change blend mode for outer ring
+    const outerRingPulse = Math.abs(beatPulse); // Use absolute value for pulsing effect
+    const outerRingRadius = MAX_FADE_DISTANCE * (1 + outerRingPulse * 0.02); // 2% pulse
+    ctx.globalAlpha = 0.4 + outerRingPulse * 0.2; // Pulse alpha between 0.4 and 0.6
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.lineWidth = 3 + outerRingPulse * 1; // Pulse line width between 3 and 4
+    ctx.shadowColor = "rgba(255, 255, 255, 0.3)";
+    ctx.shadowBlur = 8 + outerRingPulse * 4; // Pulse shadow blur between 8 and 12
+    ctx.setLineDash([8, 4]); // Dashed line for boundary
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, outerRingRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reset line dash
+
+    ctx.restore();
   }
 
   function drawPlayer(ctx, p, state) {
@@ -776,6 +1054,12 @@ window.Renderer = (() => {
     let drawX = p.pos.x - scaledW / 2 + shakeX + frameOffsetX;
     let drawY = p.pos.y - scaledH + shakeY + frameOffsetY;
 
+    const resolvedIndex =
+      typeof p.padIndex === "number" && p.padIndex >= 0
+        ? p.padIndex
+        : state.players.indexOf(p);
+    const playerIndex = resolvedIndex >= 0 ? resolvedIndex : 0;
+
     if (
       p.charName?.toLowerCase?.() === "hp" &&
       p.attack?.type === "r1" &&
@@ -895,10 +1179,11 @@ window.Renderer = (() => {
         ctx.filter = `saturate(${Math.floor(sat * 100)}%)`;
       }
 
-      // 2. Bloom (Center Glow)
-      if (p.danceZoneBloom > 0.01) {
+      // 2. Bloom (Glow based on intensity - works everywhere, not just center)
+      const intensity = Math.max(0, Math.min(1, p.danceZoneIntensity || 0));
+      if (intensity > 0.05) {
         // Add brightness for bloom core
-        const brightness = 1.0 + p.danceZoneBloom * 0.5; // Up to 1.5x brightness
+        const brightness = 1.0 + intensity * 0.5; // Up to 1.5x brightness
         if (ctx.filter && ctx.filter !== "none") {
           ctx.filter += ` brightness(${Math.floor(brightness * 100)}%)`;
         } else {
@@ -907,7 +1192,7 @@ window.Renderer = (() => {
 
         // Add glow via shadow
         ctx.shadowColor = "rgba(255, 255, 255, 0.6)"; // White glow
-        ctx.shadowBlur = 15 * p.danceZoneBloom; // Variable blur radius
+        ctx.shadowBlur = 15 * intensity; // Variable blur radius based on intensity
         // shadowOffset 0 to center the glow
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
@@ -1065,8 +1350,17 @@ window.Renderer = (() => {
         h = 150;
         break;
     }
+    // Shrink hurtbox uniformly by 10% (user requested)
+    const SHRINK_FACTOR = 0.9;
+    w = Math.round(w * SHRINK_FACTOR);
+    h = Math.round(h * SHRINK_FACTOR);
 
-    return { w, h, left: (p.pos.x - w / 2) | 0, top: (p.pos.y - h) | 0 };
+    return {
+      w,
+      h,
+      left: Math.round(p.pos.x - w / 2),
+      top: Math.round(p.pos.y - h),
+    };
   }
 
   // Clamp an attack hitbox's height so it never exceeds the character's hurtbox height.
@@ -2417,10 +2711,17 @@ window.Renderer = (() => {
     const facing = player.facing;
 
     // Long, narrow hitbox extending in front of HP for grabbing
+    // Base range can be increased by beat charges (+44% total = +20% increase from previous +20%)
+    const baseRange = 200;
+    const effectiveRange =
+      player?.perfectBeatCount > 0 ? Math.round(baseRange * 1.44) : baseRange;
+    // Ensure grab hitbox is at least 30% wider than character hurtbox
+    const minWidth = Math.ceil(hurtbox.w * 1.3);
+    const hitboxWidth = Math.max(effectiveRange, minWidth);
     const hitbox = {
       left: hurtbox.left + hurtbox.w * facing,
       top: hurtbox.top + hurtbox.h * 0.3, // Upper third of hurtbox
-      w: 200, // 200px long grab range
+      w: hitboxWidth, // long grab range (scaled when beat-charged, minimum 30% of hurtbox)
       h: hurtbox.h * 0.4, // 40% of hurtbox height
     };
 

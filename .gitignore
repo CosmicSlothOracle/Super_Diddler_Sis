@@ -130,3 +130,6 @@ webpack
 
 # Temporary files
 temp_renderer.js
+
+# Temporary copied files with Windows paths
+assets/c__Users_skank_*

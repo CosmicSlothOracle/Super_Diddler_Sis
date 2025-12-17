@@ -1,7 +1,12 @@
 /* Minimal level viewer for Ninja Stage - Now with Character and Stage Select */
 (() => {
-  const WITH_STEAM = process.env.WITH_STEAM === "true";
-  const IS_ELECTRON_BUILD = process.env.IS_ELECTRON === "true";
+  // Browser-compatible environment variable checks
+  const WITH_STEAM =
+    (typeof process !== "undefined" && process.env?.WITH_STEAM === "true") ||
+    false;
+  const IS_ELECTRON_BUILD =
+    (typeof process !== "undefined" && process.env?.IS_ELECTRON === "true") ||
+    false;
 
   const isElectronRuntime = () =>
     typeof window !== "undefined" &&
@@ -895,15 +900,14 @@
           // Check step completion for all parts (Part 2 Step 3 is handled by trackPlayerDeath)
           window.TutorialSystem.checkStepCompletion(state);
 
-          // Update modals for part 1, part 2 and part 3
-          if (state.tutorial.part === 1) {
-            window.TutorialSystem.updatePartOneModal(dt, state);
-          } else if (state.tutorial.part === 2) {
-            window.TutorialSystem.updatePartTwoModal(dt, state);
-            window.TutorialSystem.updatePartTwoLogic(dt, state); // <-- NEW
+          // Update unified tutorial modal
+          window.TutorialSystem.updateTutorialModal(dt, state);
+
+          // Update part-specific logic
+          if (state.tutorial.part === 2) {
+            window.TutorialSystem.updatePartTwoLogic(dt, state);
             window.TutorialSystem.updatePartTwoTip(dt, state);
           } else if (state.tutorial.part === 3) {
-            window.TutorialSystem.updatePartThreeModal(dt, state);
             window.TutorialSystem.updatePartTwoTip(dt, state); // Reuse tip system for part 3
           }
         }
@@ -921,28 +925,14 @@
 
         // NEW: Dance Battle UI overlay
         UIComponents.renderDanceBattle(ctx, state);
-        // Render tutorial modals based on part
-        if (state.tutorial?.part === 1) {
-          UIComponents.renderTutorialPartOneModal(ctx, state);
-        } else if (state.tutorial?.part === 2) {
-          UIComponents.renderTutorialPartTwoModal(ctx, state);
-        } else if (state.tutorial?.part === 3) {
-          UIComponents.renderTutorialPartThreeModal(ctx, state);
-          UIComponents.renderTutorialPartTwoTip(ctx, state); // Reuse tip system
-        }
+        // Render unified tutorial modal
+        UIComponents.renderTutorialModal(ctx, state);
 
-        // NEW: Handle tutorial modal confirmation (X button only during modals)
+        // NEW: Handle tutorial modal confirmation (X button - can skip anytime)
         if (state.tutorial?.active) {
-          // Check if a modal is visible and waiting for confirmation
-          const part2Modal = state.tutorial.part2?.modal;
-          const part3Modal = state.tutorial.part3?.modal;
+          // Check if unified modal is visible (can be skipped at any time)
           const isModalVisible =
-            (state.tutorial.part === 2 &&
-              part2Modal?.visible &&
-              part2Modal?.completed) ||
-            (state.tutorial.part === 3 &&
-              part3Modal?.visible &&
-              part3Modal?.completed);
+            window.TutorialModalController?.isWaitingForConfirmation?.(state);
 
           if (isModalVisible) {
             // X button only (Button 0 = X on PlayStation / A on Xbox)
@@ -953,13 +943,25 @@
               getGamepadButtonPressed(0, 0); // X/A button only
 
             if (xButtonPressed) {
+              // Handle Part 2 and Part 3 modals
               if (state.tutorial.part === 2) {
                 if (window.TutorialSystem?.confirmModal(state)) {
-                  console.log("[Tutorial] Part 2 modal confirmed via X button");
+                  console.log(
+                    "[Tutorial] Part 2 modal confirmed/skipped via X button"
+                  );
                 }
               } else if (state.tutorial.part === 3) {
                 if (window.TutorialSystem?.confirmPartThreeModal(state)) {
-                  console.log("[Tutorial] Part 3 modal confirmed via X button");
+                  console.log(
+                    "[Tutorial] Part 3 modal confirmed/skipped via X button"
+                  );
+                }
+              } else {
+                // Part 1 or other - use generic confirm (works anytime now)
+                if (window.TutorialModalController?.confirm(state)) {
+                  console.log(
+                    "[Tutorial] Modal confirmed/skipped via X button"
+                  );
                 }
               }
             }
@@ -1366,29 +1368,25 @@
     if (!state.selection.p1Locked) {
       // Navigate right
       const p1Right =
-        pressed.has("d") ||
-        pressed.has("D") ||
+        pressed.has("ArrowRight") ||
         getGamepadDPad(0, "right") ||
         getGamepadAxisPressed(0, 0, 1); // L-Stick right
 
       // Navigate left
       const p1Left =
-        pressed.has("a") ||
-        pressed.has("A") ||
+        pressed.has("ArrowLeft") ||
         getGamepadDPad(0, "left") ||
         getGamepadAxisPressed(0, 0, -1); // L-Stick left
 
       // Navigate down
       const p1Down =
-        pressed.has("s") ||
-        pressed.has("S") ||
+        pressed.has("ArrowDown") ||
         getGamepadDPad(0, "down") ||
         getGamepadAxisPressed(0, 1, 1); // L-Stick down
 
       // Navigate up
       const p1Up =
-        pressed.has("w") ||
-        pressed.has("W") ||
+        pressed.has("ArrowUp") ||
         getGamepadDPad(0, "up") ||
         getGamepadAxisPressed(0, 1, -1); // L-Stick up
 
@@ -1440,8 +1438,7 @@
       const useP1Controller = onlyOneController && state.selection.p1Locked;
       // Navigate right
       const p2Right = useP1Controller
-        ? pressed.has("d") ||
-          pressed.has("D") ||
+        ? pressed.has("ArrowRight") ||
           getGamepadDPad(0, "right") ||
           getGamepadAxisPressed(0, 0, 1)
         : pressed.has("ArrowRight") ||
@@ -1450,8 +1447,7 @@
 
       // Navigate left
       const p2Left = useP1Controller
-        ? pressed.has("a") ||
-          pressed.has("A") ||
+        ? pressed.has("ArrowLeft") ||
           getGamepadDPad(0, "left") ||
           getGamepadAxisPressed(0, 0, -1)
         : pressed.has("ArrowLeft") ||
@@ -1460,8 +1456,7 @@
 
       // Navigate down
       const p2Down = useP1Controller
-        ? pressed.has("s") ||
-          pressed.has("S") ||
+        ? pressed.has("ArrowDown") ||
           getGamepadDPad(0, "down") ||
           getGamepadAxisPressed(0, 1, 1)
         : pressed.has("ArrowDown") ||
@@ -1470,8 +1465,7 @@
 
       // Navigate up
       const p2Up = useP1Controller
-        ? pressed.has("w") ||
-          pressed.has("W") ||
+        ? pressed.has("ArrowUp") ||
           getGamepadDPad(0, "up") ||
           getGamepadAxisPressed(0, 1, -1)
         : pressed.has("ArrowUp") ||
@@ -1612,8 +1606,6 @@
     // Navigate right (keyboard or any gamepad) - UNIFIED: L-Stick navigation
     const navRight =
       pressed.has("ArrowRight") ||
-      pressed.has("d") ||
-      pressed.has("D") ||
       getGamepadDPad(0, "right") ||
       getGamepadDPad(1, "right") ||
       getGamepadAxisPressed(0, 0, 1) ||
@@ -1622,8 +1614,6 @@
     // Navigate left (keyboard or any gamepad) - UNIFIED: L-Stick navigation
     const navLeft =
       pressed.has("ArrowLeft") ||
-      pressed.has("a") ||
-      pressed.has("A") ||
       getGamepadDPad(0, "left") ||
       getGamepadDPad(1, "left") ||
       getGamepadAxisPressed(0, 0, -1) ||
@@ -1632,8 +1622,6 @@
     // Navigate down (keyboard or any gamepad)
     const navDown =
       pressed.has("ArrowDown") ||
-      pressed.has("s") ||
-      pressed.has("S") ||
       getGamepadDPad(0, "down") ||
       getGamepadDPad(1, "down") ||
       getGamepadAxisPressed(0, 1, 1) ||
@@ -1642,8 +1630,6 @@
     // Navigate up (keyboard or any gamepad)
     const navUp =
       pressed.has("ArrowUp") ||
-      pressed.has("w") ||
-      pressed.has("W") ||
       getGamepadDPad(0, "up") ||
       getGamepadDPad(1, "up") ||
       getGamepadAxisPressed(0, 1, -1) ||
@@ -1706,8 +1692,6 @@
 
     // Toggle type with L-Stick left/right (keyboard or gamepad)
     const toggleTypeLeft =
-      pressed.has("a") ||
-      pressed.has("A") ||
       pressed.has("ArrowLeft") ||
       getGamepadDPad(0, "left") ||
       getGamepadDPad(1, "left") ||
@@ -1715,8 +1699,6 @@
       getGamepadAxisPressed(1, 0, -1);
 
     const toggleTypeRight =
-      pressed.has("d") ||
-      pressed.has("D") ||
       pressed.has("ArrowRight") ||
       getGamepadDPad(0, "right") ||
       getGamepadDPad(1, "right") ||
@@ -1782,8 +1764,6 @@
 
     // Toggle mode with L-Stick left/right (keyboard or gamepad) - UNIFIED: L-Stick navigation
     const toggleModeLeft =
-      pressed.has("a") ||
-      pressed.has("A") ||
       pressed.has("ArrowLeft") ||
       getGamepadDPad(0, "left") ||
       getGamepadDPad(1, "left") ||
@@ -1791,8 +1771,6 @@
       getGamepadAxisPressed(1, 0, -1);
 
     const toggleModeRight =
-      pressed.has("d") ||
-      pressed.has("D") ||
       pressed.has("ArrowRight") ||
       getGamepadDPad(0, "right") ||
       getGamepadDPad(1, "right") ||
@@ -2412,10 +2390,7 @@
           window.TutorialSystem.resetCombatSteps(state);
         }
 
-        // Disable instruction panel for Part 2 (uses modal system instead)
-        if (state.tutorial.instructionPanel) {
-          state.tutorial.instructionPanel.visible = false;
-        }
+        // Instruction panel removed - using unified modal system instead
 
         // Initialize Part 2 intro modal
         if (window.TutorialSystem) {
@@ -2498,10 +2473,7 @@
           }
         }
 
-        // Ensure instruction panel is visible
-        if (state.tutorial.instructionPanel) {
-          state.tutorial.instructionPanel.visible = true;
-        }
+        // Instruction panel removed - using unified modal system instead
 
         if (window.TutorialSystem?.resetPartThreeState) {
           window.TutorialSystem.resetPartThreeState(state);
@@ -2785,32 +2757,24 @@
 
       const navUp =
         pressed.has("ArrowUp") ||
-        pressed.has("w") ||
-        pressed.has("W") ||
         getGamepadDPad(0, "up") ||
         getGamepadDPad(1, "up") ||
         getGamepadAxisPressed(0, 1, -1) ||
         getGamepadAxisPressed(1, 1, -1);
       const navDown =
         pressed.has("ArrowDown") ||
-        pressed.has("s") ||
-        pressed.has("S") ||
         getGamepadDPad(0, "down") ||
         getGamepadDPad(1, "down") ||
         getGamepadAxisPressed(0, 1, 1) ||
         getGamepadAxisPressed(1, 1, 1);
       const navLeft =
         pressed.has("ArrowLeft") ||
-        pressed.has("a") ||
-        pressed.has("A") ||
         getGamepadDPad(0, "left") ||
         getGamepadDPad(1, "left") ||
         getGamepadAxisPressed(0, 0, -1) ||
         getGamepadAxisPressed(1, 0, -1);
       const navRight =
         pressed.has("ArrowRight") ||
-        pressed.has("d") ||
-        pressed.has("D") ||
         getGamepadDPad(0, "right") ||
         getGamepadDPad(1, "right") ||
         getGamepadAxisPressed(0, 0, 1) ||
@@ -2944,8 +2908,6 @@
       // Navigation up/down - UNIFIED: L-Stick navigation
       const navUp =
         pressed.has("ArrowUp") ||
-        pressed.has("w") ||
-        pressed.has("W") ||
         getGamepadDPad(0, "up") ||
         getGamepadDPad(1, "up") ||
         getGamepadAxisPressed(0, 1, -1) ||
@@ -2953,8 +2915,6 @@
 
       const navDown =
         pressed.has("ArrowDown") ||
-        pressed.has("s") ||
-        pressed.has("S") ||
         getGamepadDPad(0, "down") ||
         getGamepadDPad(1, "down") ||
         getGamepadAxisPressed(0, 1, 1) ||
@@ -3077,6 +3037,15 @@
             window.close();
           }
         } else {
+          // Browser: Try to close window (may be blocked by browser security)
+          // If blocked, user can manually close the tab/window
+          try {
+            window.close();
+          } catch (e) {
+            console.log(
+              "Window.close() blocked by browser. User can close tab manually."
+            );
+          }
           // Browser environment - close window
           window.close();
         }
@@ -3259,6 +3228,10 @@
     overlay.textContent = "Initializing...";
     try {
       // Initialize systems
+      // Initialize Audio Device Manager first (for optimized AudioContext)
+      if (window.AudioDeviceManager) {
+        window.AudioDeviceManager.init();
+      }
       AudioSystem.init();
       Metronome.init();
       InputHandler.setupListeners(state);

@@ -6,6 +6,27 @@ window.InputHandler = (() => {
     );
   }
 
+  // Check if running in dev mode (npm start --dev or browser URL parameter)
+  function isDevMode() {
+    if (typeof process !== "undefined" && process.argv) {
+      return process.argv.includes("--dev");
+    }
+    // Browser fallback: check URL parameter or localStorage
+    if (typeof window !== "undefined" && window.location) {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has("dev")) return true;
+      // Check localStorage flag (can be set via console: localStorage.setItem('devMode', 'true'))
+      try {
+        return localStorage.getItem("devMode") === "true";
+      } catch (e) {
+        // localStorage may be blocked in some contexts
+      }
+      // Check if devTools are available (indicates dev mode)
+      return window.__DEV_MODE__ === true;
+    }
+    return false;
+  }
+
   const ACTION_IDS = Object.keys(BindingCatalog.ACTIONS);
   const STORAGE_KEY = "beatfighter:controllerBindings:v1";
 
@@ -176,9 +197,10 @@ window.InputHandler = (() => {
       bindingState.bindings[actionId] = newBinding;
 
       if (newBinding.type === "button") {
-        let swapCandidate = prevBindingClone && prevBindingClone.type === "button"
-          ? { ...prevBindingClone }
-          : null;
+        let swapCandidate =
+          prevBindingClone && prevBindingClone.type === "button"
+            ? { ...prevBindingClone }
+            : null;
         Object.keys(bindingState.bindings).forEach((otherActionId) => {
           if (otherActionId === actionId) return;
           const otherBinding = bindingState.bindings[otherActionId];
@@ -380,6 +402,51 @@ window.InputHandler = (() => {
     window.addEventListener("keydown", (e) => {
       if (!e.repeat) state.input.keysPressed.add(e.key);
       state.input.keysDown.add(e.key);
+
+      // Escape key always works (not a debug key)
+      if (e.key === "Escape") {
+        // Handle modal in PLAYING mode
+        if (state.gameMode === "PLAYING") {
+          if (state.modal.controlsModal.isOpen) {
+            // Close controls modal first
+            state.modal.controlsModal.isOpen = false;
+            state.modal.controlsModal.captureMode = null;
+            state.modal.controlsModal.notice = "";
+            state.modal.controlsModal.focus = "player";
+            state.modal.controlsModal.lastCaptureTime = 0;
+          } else if (state.modal.isOpen) {
+            // Close main modal
+            state.modal.isOpen = false;
+          } else {
+            // Open main modal
+            state.modal.isOpen = true;
+            state.modal.selectedButton = 0; // Reset selection
+          }
+        }
+        // Handle modal in CHARACTER_SELECT and STAGE_SELECT
+        else if (
+          state.gameMode === "CHARACTER_SELECT" ||
+          state.gameMode === "STAGE_SELECT"
+        ) {
+          if (state.modal.isOpen) {
+            // Close modal
+            state.modal.isOpen = false;
+          } else {
+            // Open modal with Quit Game option
+            state.modal.isOpen = true;
+            state.modal.selectedButton = 5; // Select "Quit Game" button (index 5)
+          }
+        }
+        return; // Escape handled, don't process further
+      }
+
+      // Debug keys only work in dev mode
+      const devMode = isDevMode();
+      if (!devMode) {
+        return; // Skip all debug keys if not in dev mode
+      }
+
+      // Dev mode only keys below
       if (e.key === "h" || e.key === "H") {
         state.debug.drawBoxes = !state.debug.drawBoxes;
       }
@@ -474,41 +541,6 @@ window.InputHandler = (() => {
         // Toggle UI visibility
         state.uiVisible = !state.uiVisible;
         console.log(`🎮 UI ${state.uiVisible ? "SHOWN" : "HIDDEN"}`);
-      }
-      // NEW: Modal toggle (ESC key)
-      if (e.key === "Escape") {
-        // Handle modal in PLAYING mode
-        if (state.gameMode === "PLAYING") {
-          if (state.modal.controlsModal.isOpen) {
-            // Close controls modal first
-            state.modal.controlsModal.isOpen = false;
-            state.modal.controlsModal.captureMode = null;
-            state.modal.controlsModal.notice = "";
-            state.modal.controlsModal.focus = "player";
-            state.modal.controlsModal.lastCaptureTime = 0;
-          } else if (state.modal.isOpen) {
-            // Close main modal
-            state.modal.isOpen = false;
-          } else {
-            // Open main modal
-            state.modal.isOpen = true;
-            state.modal.selectedButton = 0; // Reset selection
-          }
-        }
-        // Handle modal in CHARACTER_SELECT and STAGE_SELECT
-        else if (
-          state.gameMode === "CHARACTER_SELECT" ||
-          state.gameMode === "STAGE_SELECT"
-        ) {
-          if (state.modal.isOpen) {
-            // Close modal
-            state.modal.isOpen = false;
-          } else {
-            // Open modal with Quit Game option
-            state.modal.isOpen = true;
-            state.modal.selectedButton = 5; // Select "Quit Game" button (index 5)
-          }
-        }
       }
     });
     window.addEventListener("keyup", (e) => {
@@ -663,6 +695,9 @@ window.InputHandler = (() => {
       rollDown: false,
       rollHeld: false,
       rollUp: false,
+      wallInteractDown: false,
+      wallInteractHeld: false,
+      wallInteractUp: false,
       downHeld: false,
       grabDown: false, // Formerly danceBattleDown
       l1Held: false,
@@ -851,74 +886,94 @@ window.InputHandler = (() => {
     const kd = state.input.keysDown;
     const pressed = state.input.keysPressed;
 
-    const left = kd.has("ArrowLeft") || kd.has("a");
-    const right = kd.has("ArrowRight") || kd.has("d");
+    // Movement: Arrow keys only
+    const left = kd.has("ArrowLeft");
+    const right = kd.has("ArrowRight");
 
-    const r2Held = kd.has("k") || kd.has("K");
-    const r2Down = pressed.has("k") || pressed.has("K");
-    const l2Held = kd.has("e") || kd.has("E");
-    const l2Down = pressed.has("e") || pressed.has("E");
+    // Abilities
+    const r1Held = kd.has("q") || kd.has("Q");
+    const r1Down = pressed.has("q") || pressed.has("Q");
+    const r2Held = kd.has("w") || kd.has("W");
+    const r2Down = pressed.has("w") || pressed.has("W");
+    const l1Held = kd.has("e") || kd.has("E");
+    const l1Down = pressed.has("e") || pressed.has("E");
+    const l2Held = kd.has("r") || kd.has("R");
+    const l2Down = pressed.has("r") || pressed.has("R");
+
     if (l2Down) {
-      console.log(`[Input] P1: L2 DOWN (Keyboard E)`);
+      console.log(`[Input] P1: L2 DOWN (Keyboard R)`);
     }
-    const nowSec = performance.now() * 0.001;
-    if (r2Down) state.input.lastR2DownTime[0] = nowSec;
-    if (l2Down) state.input.lastL2DownTime[0] = nowSec;
+
+    // Ultimate: S key
+    const ultiDown = pressed.has("s") || pressed.has("S");
+
+    // Jump: Spacebar
+    const jumpPressed = pressed.has(" ");
+    const jumpHeld = kd.has(" ");
+
+    // Dodge: Shift
+    const rollDown =
+      pressed.has("Shift") ||
+      pressed.has("ShiftLeft") ||
+      pressed.has("ShiftRight");
+    const rollHeld =
+      kd.has("Shift") || kd.has("ShiftLeft") || kd.has("ShiftRight");
+    const rollUp =
+      !(kd.has("Shift") || kd.has("ShiftLeft") || kd.has("ShiftRight")) &&
+      (state.input.prevKeysDown?.has("Shift") ||
+        state.input.prevKeysDown?.has("ShiftLeft") ||
+        state.input.prevKeysDown?.has("ShiftRight"));
+
+    // Walljump/Wallslide: Ctrl
+    const wallInteractDown =
+      pressed.has("Control") ||
+      pressed.has("ControlLeft") ||
+      pressed.has("ControlRight");
+    const wallInteractHeld =
+      kd.has("Control") || kd.has("ControlLeft") || kd.has("ControlRight");
+    const wallInteractUp =
+      !(kd.has("Control") || kd.has("ControlLeft") || kd.has("ControlRight")) &&
+      (state.input.prevKeysDown?.has("Control") ||
+        state.input.prevKeysDown?.has("ControlLeft") ||
+        state.input.prevKeysDown?.has("ControlRight"));
+
+    // Dance: D
+    const danceDown = pressed.has("d") || pressed.has("D");
+
+    // L3 Up + R1 Down (Fritz special combo)
+    const l3UpR1Down = r1Down && kd.has("ArrowUp");
 
     return {
       axis: left && !right ? -1 : right && !left ? 1 : 0,
-      jump: ["w", "W", " "].some((k) => pressed.has(k)),
-      jumpHeld: ["w", "W", " "].some((k) => kd.has(k)),
-      r1Held: kd.has("j") || kd.has("J"),
-      r1Down: pressed.has("j") || pressed.has("J"),
+      jump: jumpPressed,
+      jumpHeld: jumpHeld,
+      r1Held: r1Held,
+      r1Down: r1Down,
       r2Held: r2Held,
       r2Down: r2Down,
-      l1Held: kd.has("q") || kd.has("Q"),
-      l1Down: pressed.has("q") || pressed.has("Q"),
+      l1Held: l1Held,
+      l1Down: l1Down,
       l1Up:
-        !(kd.has("q") || kd.has("Q")) &&
-        (state.input.prevKeysDown?.has("q") ||
-          state.input.prevKeysDown?.has("Q")),
+        !l1Held &&
+        (state.input.prevKeysDown?.has("e") ||
+          state.input.prevKeysDown?.has("E")),
       l2Held: l2Held,
       l2Down: l2Down,
       l2Up:
-        !(kd.has("e") || kd.has("E")) &&
-        (state.input.prevKeysDown?.has("e") ||
-          state.input.prevKeysDown?.has("E")),
-      // Relaxed R2+L2 window for keyboard as well
-      ultiDown:
-        (r2Held && l2Down) ||
-        (l2Held && r2Down) ||
-        (() => {
-          const tR2 = state.input.lastR2DownTime[0] ?? -999;
-          const tL2 = state.input.lastL2DownTime[0] ?? -999;
-          const windowSec = 0.25;
-          return (
-            Math.abs(tR2 - tL2) <= windowSec &&
-            nowSec - Math.max(tR2, tL2) <= windowSec
-          );
-        })(),
-      l3UpR1Down: (pressed.has("j") || pressed.has("J")) && kd.has("ArrowUp"),
-      rollDown: (() => {
-        const rollPressed = pressed.has("t") || pressed.has("T");
-        // if (rollPressed) console.log("[Input] P1: T key pressed (Dodge)");
-        return rollPressed;
-      })(),
-      rollHeld: kd.has("t") || kd.has("T"),
-      rollUp:
-        !(kd.has("t") || kd.has("T")) &&
-        (state.input.prevKeysDown?.has("t") ||
-          state.input.prevKeysDown?.has("T")),
+        !l2Held &&
+        (state.input.prevKeysDown?.has("r") ||
+          state.input.prevKeysDown?.has("R")),
+      ultiDown: ultiDown,
+      l3UpR1Down: l3UpR1Down,
+      rollDown: rollDown,
+      rollHeld: rollHeld,
+      rollUp: rollUp,
+      wallInteractDown: wallInteractDown,
+      wallInteractHeld: wallInteractHeld,
+      wallInteractUp: wallInteractUp,
       downHeld: kd.has("ArrowDown"),
-      grabDown: pressed.has("s") || pressed.has("S"), // Formerly danceBattleDown
-      danceDown: (() => {
-        const dancePressed =
-          pressed.has("Shift") ||
-          pressed.has("ShiftLeft") ||
-          pressed.has("ShiftRight");
-        // if (dancePressed) console.log("[Input] P1: Shift key pressed (Dance)");
-        return dancePressed;
-      })(),
+      grabDown: pressed.has("a") || pressed.has("A"), // Grab mapped to A key
+      danceDown: danceDown,
     };
   }
 

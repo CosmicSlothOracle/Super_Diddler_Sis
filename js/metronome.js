@@ -12,8 +12,18 @@ window.Metronome = (() => {
 
   function init() {
     if (!audioContext) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      console.log("🎵 Metronome AudioContext initialized");
+      // Use AudioDeviceManager for optimized AudioContext if available
+      if (window.AudioDeviceManager) {
+        audioContext = window.AudioDeviceManager.createOptimizedAudioContext();
+        console.log(
+          `🎵 Metronome AudioContext initialized: ${audioContext.sampleRate}Hz (optimized)`
+        );
+      } else {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log(
+          `🎵 Metronome AudioContext initialized: ${audioContext.sampleRate}Hz`
+        );
+      }
     }
   }
 
