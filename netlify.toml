@@ -7,6 +7,12 @@
   command = "echo 'No build step needed - serving static files'"
 
 # Redirect all routes to index.html (useful for SPA routing if added later)
+# BUT: Exclude API routes from this redirect
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

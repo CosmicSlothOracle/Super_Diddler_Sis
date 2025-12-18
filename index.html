@@ -49,6 +49,8 @@
       <canvas id="game"></canvas>
     </div>
     <div id="overlay">Loading…</div>
+    <script src="js/analytics-config.js?v=20250110_1"></script>
+    <script src="js/analytics-client.js?v=20250110_1"></script>
     <script src="js/game-state.js?v=20250110_1"></script>
     <script src="js/ui-components.js?v=20250110_1"></script>
     <script src="js/webgl-renderer.js?v=20250110_1"></script>
@@ -74,5 +76,26 @@
     <script src="js/audio-system.js?v=20250110_1"></script>
     <script src="js/performance-monitor.js?v=20250110_1"></script>
     <script src="js/main.js?v=20250110_1"></script>
+    <script>
+      // Global error handlers for analytics
+      window.addEventListener("error", (event) => {
+        if (window.AnalyticsClient) {
+          window.AnalyticsClient.trackError(event.error || event.message, {
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+            context: "global_error",
+          });
+        }
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        if (window.AnalyticsClient) {
+          window.AnalyticsClient.trackError(event.reason, {
+            context: "unhandled_promise_rejection",
+          });
+        }
+      });
+    </script>
   </body>
 </html>
