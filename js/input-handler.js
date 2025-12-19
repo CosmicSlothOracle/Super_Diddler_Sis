@@ -1031,14 +1031,16 @@ window.InputHandler = (() => {
     const l1Held = window.MobileControls.isButtonHeld("l1");
     const l1Down = window.MobileControls.isButtonDown("l1");
     const l1Up = window.MobileControls.isButtonUp("l1");
-
-    // Map mobile buttons to game actions
-    // R2 can be used for L2 if needed, but for now we'll use R2 for R2
-    // For L2, we could use a long-press on R2 or add another button, but for simplicity
-    // we'll map L1 to L1 and leave L2 unmapped (can be added later)
-    const l2Held = false; // Not mapped yet
-    const l2Down = false;
-    const l2Up = false;
+    const l2Held = window.MobileControls.isButtonHeld("l2");
+    const l2Down = window.MobileControls.isButtonDown("l2");
+    const l2Up = window.MobileControls.isButtonUp("l2");
+    const rollHeld = window.MobileControls.isButtonHeld("roll");
+    const rollDown = window.MobileControls.isButtonDown("roll");
+    const rollUp = window.MobileControls.isButtonUp("roll");
+    const grabDown = window.MobileControls.isButtonDown("grab");
+    const danceDown = window.MobileControls.isButtonDown("dance");
+    const ultiDown = window.MobileControls.isButtonDown("ultimate");
+    const axisY = window.MobileControls.getAxisY();
 
     return {
       axis: axisX,
@@ -1056,17 +1058,17 @@ window.InputHandler = (() => {
       l2Held: l2Held,
       l2Down: l2Down,
       l2Up: l2Up,
-      ultiDown: false, // Not mapped yet
-      rollDown: false, // Not mapped yet (could use swipe gesture)
-      rollHeld: false,
-      rollUp: false,
-      wallInteractDown: false, // Not mapped yet
+      ultiDown: ultiDown,
+      rollDown: rollDown,
+      rollHeld: rollHeld,
+      rollUp: rollUp,
+      wallInteractDown: false, // Could map to long-press or combo
       wallInteractHeld: false,
       wallInteractUp: false,
-      downHeld: false, // Could use joystick Y axis
-      grabDown: false, // Not mapped yet
-      danceDown: false, // Not mapped yet
-      l3UpR1Down: false, // Not mapped yet
+      downHeld: axisY > 0.4, // Use joystick Y axis for down
+      grabDown: grabDown,
+      danceDown: danceDown,
+      l3UpR1Down: false, // Could map to combo if needed
     };
   }
 

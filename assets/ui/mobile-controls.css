@@ -37,8 +37,27 @@
     /* Button container */
     bottom: 10px;
     right: 10px;
-    width: 150px;
-    height: 150px;
-    gap: 10px;
+    width: 200px;
+    height: 200px;
+    gap: 8px;
+  }
+
+  #mobile-controls .mobile-btn {
+    font-size: 9px;
+  }
+}
+
+/* Portrait orientation adjustments */
+@media (orientation: portrait) {
+  #mobile-controls > div:first-child {
+    /* Joystick area */
+    bottom: 15px;
+    left: 15px;
+  }
+
+  #mobile-controls > div:last-child {
+    /* Button container */
+    bottom: 15px;
+    right: 15px;
   }
 }

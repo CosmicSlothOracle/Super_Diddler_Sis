@@ -31,6 +31,7 @@ const CRITICAL_ASSETS = [
   "/js/analytics-config.js",
   "/js/analytics-client.js",
   "/js/mobile-controls.js",
+  "/js/touch-navigation.js",
   "/assets/ui/mobile-controls.css",
   "/data/characters.json",
   "/data/stages.json",

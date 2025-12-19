@@ -3013,6 +3013,9 @@
     }
   }
 
+  // Export handleModalAction for touch navigation
+  window.handleModalAction = handleModalAction;
+
   // NEW: Handle modal button actions
   function handleModalAction(state, action) {
     switch (action) {
@@ -3298,6 +3301,11 @@
       // Initialize mobile controls
       if (window.MobileControls) {
         window.MobileControls.init();
+      }
+
+      // Initialize touch navigation
+      if (window.TouchNavigation) {
+        window.TouchNavigation.init(canvas, state);
       }
 
       window.addEventListener("resize", handleResize);

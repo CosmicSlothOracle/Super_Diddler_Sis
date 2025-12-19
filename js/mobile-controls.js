@@ -17,6 +17,11 @@ window.MobileControls = (() => {
     r1: { pressed: false, down: false, up: false },
     r2: { pressed: false, down: false, up: false },
     l1: { pressed: false, down: false, up: false },
+    l2: { pressed: false, down: false, up: false },
+    roll: { pressed: false, down: false, up: false },
+    grab: { pressed: false, down: false, up: false },
+    dance: { pressed: false, down: false, up: false },
+    ultimate: { pressed: false, down: false, up: false },
   };
 
   const prevButtonState = {
@@ -24,6 +29,11 @@ window.MobileControls = (() => {
     r1: false,
     r2: false,
     l1: false,
+    l2: false,
+    roll: false,
+    grab: false,
+    dance: false,
+    ultimate: false,
   };
 
   let container = null;
@@ -94,27 +104,36 @@ window.MobileControls = (() => {
     joystickArea.appendChild(joystickKnob);
     container.appendChild(joystickArea);
 
-    // Buttons (right side)
+    // Buttons (right side) - Expanded layout for all buttons
     buttonContainer = document.createElement("div");
     buttonContainer.style.cssText = `
       position: absolute;
-      right: 20px;
-      bottom: 20px;
+      right: 15px;
+      bottom: 15px;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 15px;
-      width: 180px;
-      height: 180px;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 10px;
+      width: 240px;
+      height: 240px;
       pointer-events: auto;
       touch-action: none;
     `;
 
+    // Layout: 3x3 grid
+    // Row 1: Jump, R1, R2
+    // Row 2: L1, L2, Roll
+    // Row 3: Grab, Dance, Ultimate
     const buttonConfigs = [
       { id: "jump", label: "JUMP", row: 0, col: 0 },
       { id: "r1", label: "R1", row: 0, col: 1 },
-      { id: "r2", label: "R2", row: 1, col: 1 },
+      { id: "r2", label: "R2", row: 0, col: 2 },
       { id: "l1", label: "L1", row: 1, col: 0 },
+      { id: "l2", label: "L2", row: 1, col: 1 },
+      { id: "roll", label: "ROLL", row: 1, col: 2 },
+      { id: "grab", label: "GRAB", row: 2, col: 0 },
+      { id: "dance", label: "DANCE", row: 2, col: 1 },
+      { id: "ultimate", label: "ULT", row: 2, col: 2 },
     ];
 
     buttonConfigs.forEach((config) => {
@@ -131,12 +150,14 @@ window.MobileControls = (() => {
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 11px;
         font-weight: bold;
         color: rgba(255, 255, 255, 0.9);
         touch-action: none;
         user-select: none;
         transition: all 0.1s ease;
+        text-align: center;
+        line-height: 1.1;
       `;
       buttonContainer.appendChild(btn);
     });
