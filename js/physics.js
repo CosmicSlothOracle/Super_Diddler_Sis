@@ -469,46 +469,132 @@ window.Physics = (() => {
 
     const padIn = InputHandler.getPadInput(p.padIndex, state);
     const kbIn = i === 0 ? InputHandler.getKeyboardInput(state) : {};
+    const mobileIn =
+      i === 0
+        ? InputHandler.getMobileInput
+          ? InputHandler.getMobileInput(i)
+          : {}
+        : {};
 
     // NEW: Check if NPC should override P2 inputs
     const npcIn = window.NPCController?.getInputs(state, i);
     const finalInput = npcIn || padIn;
     const finalKbIn = npcIn ? {} : kbIn; // Disable keyboard for NPC-controlled player
+    const finalMobileIn = npcIn ? {} : mobileIn; // Disable mobile for NPC-controlled player
+
+    // Merge inputs: priority is gamepad > keyboard > mobile (for axis, use strongest)
+    const allAxis = [
+      finalInput.axis,
+      finalKbIn.axis ?? 0,
+      finalMobileIn.axis ?? 0,
+    ];
+    const strongestAxis = allAxis.reduce(
+      (a, b) => (Math.abs(a) > Math.abs(b) ? a : b),
+      0
+    );
 
     const inputs = {
-      axis:
-        Math.abs(finalInput.axis) > Math.abs(finalKbIn.axis ?? 0)
-          ? finalInput.axis
-          : finalKbIn.axis ?? 0,
-      jumpPressed: finalInput.jump || (finalKbIn.jump ?? false),
-      jumpHeld: finalInput.jumpHeld || (finalKbIn.jumpHeld ?? false),
-      l1Held: finalInput.l1Held || (finalKbIn.l1Held ?? false),
-      l1Down: finalInput.l1Down || (finalKbIn.l1Down ?? false),
-      l1Up: finalInput.l1Up || (finalKbIn.l1Up ?? false),
-      l2Held: finalInput.l2Held || (finalKbIn.l2Held ?? false),
-      l2Down: finalInput.l2Down || (finalKbIn.l2Down ?? false),
-      l2Up: finalInput.l2Up || (finalKbIn.l2Up ?? false),
-      r1Held: finalInput.r1Held || (finalKbIn.r1Held ?? false),
-      r1Down: finalInput.r1Down || (finalKbIn.r1Down ?? false),
-      r1Up: finalInput.r1Up || (finalKbIn.r1Up ?? false),
-      r2Held: finalInput.r2Held || (finalKbIn.r2Held ?? false),
-      r2Down: finalInput.r2Down || (finalKbIn.r2Down ?? false),
-      rollDown: finalInput.rollDown || (finalKbIn.rollDown ?? false),
-      rollHeld: finalInput.rollHeld || (finalKbIn.rollHeld ?? false),
-      rollUp: finalInput.rollUp || (finalKbIn.rollUp ?? false),
+      axis: strongestAxis,
+      jumpPressed:
+        finalInput.jump ||
+        (finalKbIn.jump ?? false) ||
+        (finalMobileIn.jump ?? false),
+      jumpHeld:
+        finalInput.jumpHeld ||
+        (finalKbIn.jumpHeld ?? false) ||
+        (finalMobileIn.jumpHeld ?? false),
+      l1Held:
+        finalInput.l1Held ||
+        (finalKbIn.l1Held ?? false) ||
+        (finalMobileIn.l1Held ?? false),
+      l1Down:
+        finalInput.l1Down ||
+        (finalKbIn.l1Down ?? false) ||
+        (finalMobileIn.l1Down ?? false),
+      l1Up:
+        finalInput.l1Up ||
+        (finalKbIn.l1Up ?? false) ||
+        (finalMobileIn.l1Up ?? false),
+      l2Held:
+        finalInput.l2Held ||
+        (finalKbIn.l2Held ?? false) ||
+        (finalMobileIn.l2Held ?? false),
+      l2Down:
+        finalInput.l2Down ||
+        (finalKbIn.l2Down ?? false) ||
+        (finalMobileIn.l2Down ?? false),
+      l2Up:
+        finalInput.l2Up ||
+        (finalKbIn.l2Up ?? false) ||
+        (finalMobileIn.l2Up ?? false),
+      r1Held:
+        finalInput.r1Held ||
+        (finalKbIn.r1Held ?? false) ||
+        (finalMobileIn.r1Held ?? false),
+      r1Down:
+        finalInput.r1Down ||
+        (finalKbIn.r1Down ?? false) ||
+        (finalMobileIn.r1Down ?? false),
+      r1Up:
+        finalInput.r1Up ||
+        (finalKbIn.r1Up ?? false) ||
+        (finalMobileIn.r1Up ?? false),
+      r2Held:
+        finalInput.r2Held ||
+        (finalKbIn.r2Held ?? false) ||
+        (finalMobileIn.r2Held ?? false),
+      r2Down:
+        finalInput.r2Down ||
+        (finalKbIn.r2Down ?? false) ||
+        (finalMobileIn.r2Down ?? false),
+      rollDown:
+        finalInput.rollDown ||
+        (finalKbIn.rollDown ?? false) ||
+        (finalMobileIn.rollDown ?? false),
+      rollHeld:
+        finalInput.rollHeld ||
+        (finalKbIn.rollHeld ?? false) ||
+        (finalMobileIn.rollHeld ?? false),
+      rollUp:
+        finalInput.rollUp ||
+        (finalKbIn.rollUp ?? false) ||
+        (finalMobileIn.rollUp ?? false),
       wallInteractDown:
-        finalInput.wallInteractDown || (finalKbIn.wallInteractDown ?? false),
+        finalInput.wallInteractDown ||
+        (finalKbIn.wallInteractDown ?? false) ||
+        (finalMobileIn.wallInteractDown ?? false),
       wallInteractHeld:
-        finalInput.wallInteractHeld || (finalKbIn.wallInteractHeld ?? false),
+        finalInput.wallInteractHeld ||
+        (finalKbIn.wallInteractHeld ?? false) ||
+        (finalMobileIn.wallInteractHeld ?? false),
       wallInteractUp:
-        finalInput.wallInteractUp || (finalKbIn.wallInteractUp ?? false),
-      downHeld: finalInput.downHeld || (finalKbIn.downHeld ?? false),
-      grabDown: finalInput.grabDown || (finalKbIn.grabDown ?? false),
-      ultiDown: finalInput.ultiDown || (finalKbIn.ultiDown ?? false),
+        finalInput.wallInteractUp ||
+        (finalKbIn.wallInteractUp ?? false) ||
+        (finalMobileIn.wallInteractUp ?? false),
+      downHeld:
+        finalInput.downHeld ||
+        (finalKbIn.downHeld ?? false) ||
+        (finalMobileIn.downHeld ?? false),
+      grabDown:
+        finalInput.grabDown ||
+        (finalKbIn.grabDown ?? false) ||
+        (finalMobileIn.grabDown ?? false),
+      ultiDown:
+        finalInput.ultiDown ||
+        (finalKbIn.ultiDown ?? false) ||
+        (finalMobileIn.ultiDown ?? false),
       r1CircleDown:
-        finalInput.r1CircleDown || (finalKbIn.r1CircleDown ?? false),
-      l3UpR1Down: finalInput.l3UpR1Down || (finalKbIn.l3UpR1Down ?? false),
-      danceDown: finalInput.danceDown || (finalKbIn.danceDown ?? false),
+        finalInput.r1CircleDown ||
+        (finalKbIn.r1CircleDown ?? false) ||
+        (finalMobileIn.r1CircleDown ?? false),
+      l3UpR1Down:
+        finalInput.l3UpR1Down ||
+        (finalKbIn.l3UpR1Down ?? false) ||
+        (finalMobileIn.l3UpR1Down ?? false),
+      danceDown:
+        finalInput.danceDown ||
+        (finalKbIn.danceDown ?? false) ||
+        (finalMobileIn.danceDown ?? false),
     };
 
     const particleMgr = window.ParticleManager;
@@ -6473,6 +6559,17 @@ window.Physics = (() => {
         )}, ${p.pos.y.toFixed(0)})`
     );
 
+    // Analytics: Track player death
+    if (window.AnalyticsClient && p.lives > 0) {
+      // Only track if player has lives left (actual death, not elimination)
+      window.AnalyticsClient.trackEvent("player_death", {
+        playerIndex: p.padIndex,
+        character: p.charName,
+        livesRemaining: p.lives - 1,
+        percent: p.percent || 0,
+      });
+    }
+
     // Dance Mode: Skip life reduction (infinite lives)
     if (state.selectedGameMode === "dance") {
       const sp = state.spawnPoints?.[p.padIndex] ?? {
@@ -6539,6 +6636,15 @@ window.Physics = (() => {
       );
       p.eliminated = true;
       p.eliminated = true;
+
+      // Analytics: Track player elimination
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackEvent("player_elimination", {
+          playerIndex: p.padIndex,
+          character: p.charName,
+          percent: p.percent || 0,
+        });
+      }
 
       // NEW: Track enemy defeat in tutorial
       if (window.TutorialSystem && state.tutorial?.active) {
@@ -9794,6 +9900,15 @@ window.Physics = (() => {
     if (alivePlayers.length === 1) {
       const survivor = alivePlayers[0];
       state.matchEnd.lastKnownAliveIndex = survivor;
+      // Analytics: Track match end
+      if (window.AnalyticsClient) {
+        const winner = state.players[survivor];
+        window.AnalyticsClient.trackEvent("match_end", {
+          winner: survivor,
+          winnerCharacter: winner?.charName || "unknown",
+          matchDuration: state.lastTime || 0,
+        });
+      }
       startMatchEndSequence(state, survivor);
     } else if (alivePlayers.length === 0) {
       const fallbackWinner = state.matchEnd.lastKnownAliveIndex;

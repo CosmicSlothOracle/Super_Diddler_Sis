@@ -980,12 +980,101 @@ window.InputHandler = (() => {
   function clearInputEdges(state) {
     state.input.prevKeysDown = new Set(state.input.keysDown);
     state.input.keysPressed.clear();
+    // Clear mobile control edges
+    if (window.MobileControls) {
+      window.MobileControls.clearEdges();
+    }
+  }
+
+  function getMobileInput(playerIndex) {
+    // Only P1 gets mobile controls for now
+    if (playerIndex !== 0 || !window.MobileControls) {
+      return {
+        axis: 0,
+        jump: false,
+        jumpHeld: false,
+        r1Held: false,
+        r1Down: false,
+        r1Up: false,
+        r2Held: false,
+        r2Down: false,
+        r2Up: false,
+        l1Held: false,
+        l1Down: false,
+        l1Up: false,
+        l2Held: false,
+        l2Down: false,
+        l2Up: false,
+        ultiDown: false,
+        rollDown: false,
+        rollHeld: false,
+        rollUp: false,
+        wallInteractDown: false,
+        wallInteractHeld: false,
+        wallInteractUp: false,
+        downHeld: false,
+        grabDown: false,
+        danceDown: false,
+        l3UpR1Down: false,
+      };
+    }
+
+    const axisX = window.MobileControls.getAxisX();
+    const jumpHeld = window.MobileControls.isButtonHeld("jump");
+    const jumpDown = window.MobileControls.isButtonDown("jump");
+    const r1Held = window.MobileControls.isButtonHeld("r1");
+    const r1Down = window.MobileControls.isButtonDown("r1");
+    const r1Up = window.MobileControls.isButtonUp("r1");
+    const r2Held = window.MobileControls.isButtonHeld("r2");
+    const r2Down = window.MobileControls.isButtonDown("r2");
+    const r2Up = window.MobileControls.isButtonUp("r2");
+    const l1Held = window.MobileControls.isButtonHeld("l1");
+    const l1Down = window.MobileControls.isButtonDown("l1");
+    const l1Up = window.MobileControls.isButtonUp("l1");
+
+    // Map mobile buttons to game actions
+    // R2 can be used for L2 if needed, but for now we'll use R2 for R2
+    // For L2, we could use a long-press on R2 or add another button, but for simplicity
+    // we'll map L1 to L1 and leave L2 unmapped (can be added later)
+    const l2Held = false; // Not mapped yet
+    const l2Down = false;
+    const l2Up = false;
+
+    return {
+      axis: axisX,
+      jump: jumpDown,
+      jumpHeld: jumpHeld,
+      r1Held: r1Held,
+      r1Down: r1Down,
+      r1Up: r1Up,
+      r2Held: r2Held,
+      r2Down: r2Down,
+      r2Up: r2Up,
+      l1Held: l1Held,
+      l1Down: l1Down,
+      l1Up: l1Up,
+      l2Held: l2Held,
+      l2Down: l2Down,
+      l2Up: l2Up,
+      ultiDown: false, // Not mapped yet
+      rollDown: false, // Not mapped yet (could use swipe gesture)
+      rollHeld: false,
+      rollUp: false,
+      wallInteractDown: false, // Not mapped yet
+      wallInteractHeld: false,
+      wallInteractUp: false,
+      downHeld: false, // Could use joystick Y axis
+      grabDown: false, // Not mapped yet
+      danceDown: false, // Not mapped yet
+      l3UpR1Down: false, // Not mapped yet
+    };
   }
 
   return {
     setupListeners,
     getPadInput,
     getKeyboardInput,
+    getMobileInput,
     clearInputEdges,
     scanGamepads,
     updateGamepadMapping,

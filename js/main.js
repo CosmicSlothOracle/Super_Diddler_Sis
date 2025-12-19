@@ -21,6 +21,18 @@
   window.state = state; // Make state globally accessible for WebGL renderer
   state.gameMode = "LOADING"; // NEW: Game mode state machine
 
+  // NEW: Performance mode for mobile devices
+  state.performanceMode = false;
+  if (typeof window !== "undefined" && window.matchMedia) {
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const isLowEnd =
+      navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4;
+    state.performanceMode = isCoarsePointer || isLowEnd;
+    if (state.performanceMode) {
+      console.log("[Performance] Mobile/Performance mode enabled");
+    }
+  }
+
   // NEW: Metronome state
   state.metronome = {
     enabled: false,
@@ -878,7 +890,16 @@
           particleMgr &&
           typeof particleMgr.update === "function"
         ) {
-          particleMgr.update(dt);
+          // In performance mode, update particles less frequently (every other frame)
+          if (state.performanceMode) {
+            state._particleUpdateCounter =
+              (state._particleUpdateCounter || 0) + 1;
+            if (state._particleUpdateCounter % 2 === 0) {
+              particleMgr.update(dt);
+            }
+          } else {
+            particleMgr.update(dt);
+          }
         }
 
         if (window.PerformanceMonitor?.isEnabled) {
@@ -1680,6 +1701,12 @@
       state.gameMode = "CHARACTER_SELECT";
       state.selection.p1Locked = false;
       state.selection.p2Locked = false;
+      // Analytics: Track game mode change
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackEvent("game_mode_change", {
+          mode: "CHARACTER_SELECT",
+        });
+      }
       // Restart menu loop when returning to character select
       AudioSystem.playTrack("MENU_LOOP");
     }
@@ -1802,6 +1829,13 @@
       ];
       const stagePath = state.selection.stages[selectedStageKey].path;
       console.log(`Starting game with mode: ${state.selectedGameMode}`);
+      // Analytics: Track stage selection
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackEvent("stage_selection", {
+          stage: selectedStageKey,
+          stagePath: stagePath,
+        });
+      }
       startGame(stagePath);
     }
 
@@ -2036,6 +2070,15 @@
         state.gameMode = "STAGE_SELECT";
         // Stop character select music when entering stage select
         AudioSystem.stopMusic(0.5);
+        // Analytics: Track game mode change and character selection
+        if (window.AnalyticsClient) {
+          window.AnalyticsClient.trackEvent("game_mode_change", {
+            mode: "STAGE_SELECT",
+          });
+          window.AnalyticsClient.trackEvent("character_selection", {
+            characters: state.selectedCharacters || [],
+          });
+        }
         console.log(
           "Character selected animation complete - transitioning to stage select"
         );
@@ -2591,6 +2634,18 @@
 
       state.gameMode = "PLAYING";
 
+      // Analytics: Track match start
+      if (window.AnalyticsClient) {
+        const stageName = stagePath.split("/").pop() || stagePath;
+        window.AnalyticsClient.trackEvent("match_start", {
+          stage: stageName,
+          characters: state.selectedCharacters || [],
+          isTrainingMode: state.isTrainingMode || false,
+          isStoryMode: state.isStoryMode || false,
+          playerCount: state.players?.length || 0,
+        });
+      }
+
       // Debug: Log initial tutorial / hitstop state right after starting the stage
       try {
         console.log(
@@ -2610,6 +2665,10 @@
       overlay.textContent =
         "Error: " + err.message + " (Press START/ESC to return)";
       state.gameMode = "ERROR"; // Set specific error state
+      // Analytics: Track error
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackError(err, { context: "startGame" });
+      }
     }
   }
 
@@ -3235,6 +3294,12 @@
       AudioSystem.init();
       Metronome.init();
       InputHandler.setupListeners(state);
+
+      // Initialize mobile controls
+      if (window.MobileControls) {
+        window.MobileControls.init();
+      }
+
       window.addEventListener("resize", handleResize);
       handleResize();
 

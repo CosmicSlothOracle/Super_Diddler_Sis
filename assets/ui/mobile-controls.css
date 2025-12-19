@@ -1,0 +1,44 @@
+/* Mobile Controls Styles - Additional styling if needed */
+#mobile-controls {
+  font-family: 'Inter', sans-serif;
+}
+
+#mobile-controls .mobile-btn {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+#mobile-controls .mobile-btn:active {
+  opacity: 0.8;
+}
+
+/* Hide controls on desktop when not needed */
+@media (min-width: 901px) and (pointer: fine) {
+  #mobile-controls {
+    display: none !important;
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  #mobile-controls {
+    /* Adjust positioning for very short screens */
+  }
+
+  #mobile-controls > div:first-child {
+    /* Joystick area */
+    bottom: 10px;
+    left: 10px;
+    width: 120px;
+    height: 120px;
+  }
+
+  #mobile-controls > div:last-child {
+    /* Button container */
+    bottom: 10px;
+    right: 10px;
+    width: 150px;
+    height: 150px;
+    gap: 10px;
+  }
+}

@@ -1,0 +1,359 @@
+// Virtual Gamepad for Mobile Devices
+// Provides joystick (left) and action buttons (right)
+window.MobileControls = (() => {
+  let joystickActive = false;
+  let joystickX = 0;
+  let joystickY = 0;
+  let joystickBaseX = 0;
+  let joystickBaseY = 0;
+  let joystickKnobX = 0;
+  let joystickKnobY = 0;
+  let joystickRadius = 60;
+  let joystickKnobRadius = 30;
+  let activePointerId = null;
+
+  const buttons = {
+    jump: { pressed: false, down: false, up: false },
+    r1: { pressed: false, down: false, up: false },
+    r2: { pressed: false, down: false, up: false },
+    l1: { pressed: false, down: false, up: false },
+  };
+
+  const prevButtonState = {
+    jump: false,
+    r1: false,
+    r2: false,
+    l1: false,
+  };
+
+  let container = null;
+  let joystickBase = null;
+  let joystickKnob = null;
+  let buttonContainer = null;
+  let isVisible = false;
+
+  function createControls() {
+    if (container) return;
+
+    container = document.createElement("div");
+    container.id = "mobile-controls";
+    container.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      touch-action: none;
+      user-select: none;
+    `;
+
+    // Joystick (left side)
+    const joystickArea = document.createElement("div");
+    joystickArea.style.cssText = `
+      position: absolute;
+      left: 20px;
+      bottom: 20px;
+      width: 140px;
+      height: 140px;
+      pointer-events: auto;
+      touch-action: none;
+    `;
+
+    joystickBase = document.createElement("div");
+    joystickBase.style.cssText = `
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: ${joystickRadius * 2}px;
+      height: ${joystickRadius * 2}px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      pointer-events: none;
+    `;
+
+    joystickKnob = document.createElement("div");
+    joystickKnob.style.cssText = `
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: ${joystickKnobRadius * 2}px;
+      height: ${joystickKnobRadius * 2}px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.8);
+      pointer-events: none;
+      transition: transform 0.1s ease-out;
+    `;
+
+    joystickArea.appendChild(joystickBase);
+    joystickArea.appendChild(joystickKnob);
+    container.appendChild(joystickArea);
+
+    // Buttons (right side)
+    buttonContainer = document.createElement("div");
+    buttonContainer.style.cssText = `
+      position: absolute;
+      right: 20px;
+      bottom: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 15px;
+      width: 180px;
+      height: 180px;
+      pointer-events: auto;
+      touch-action: none;
+    `;
+
+    const buttonConfigs = [
+      { id: "jump", label: "JUMP", row: 0, col: 0 },
+      { id: "r1", label: "R1", row: 0, col: 1 },
+      { id: "r2", label: "R2", row: 1, col: 1 },
+      { id: "l1", label: "L1", row: 1, col: 0 },
+    ];
+
+    buttonConfigs.forEach((config) => {
+      const btn = document.createElement("div");
+      btn.className = `mobile-btn mobile-btn-${config.id}`;
+      btn.dataset.buttonId = config.id;
+      btn.textContent = config.label;
+      btn.style.cssText = `
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        color: rgba(255, 255, 255, 0.9);
+        touch-action: none;
+        user-select: none;
+        transition: all 0.1s ease;
+      `;
+      buttonContainer.appendChild(btn);
+    });
+
+    container.appendChild(buttonContainer);
+    document.body.appendChild(container);
+
+    // Initialize joystick position
+    const rect = joystickArea.getBoundingClientRect();
+    joystickBaseX = rect.left + rect.width / 2;
+    joystickBaseY = rect.top + rect.height / 2;
+    joystickKnobX = joystickBaseX;
+    joystickKnobY = joystickBaseY;
+
+    setupEventListeners();
+  }
+
+  function setupEventListeners() {
+    if (!container) return;
+
+    // Joystick events
+    const joystickArea = container.querySelector("div");
+    joystickArea.addEventListener("pointerdown", handleJoystickStart, {
+      passive: false,
+    });
+    joystickArea.addEventListener("pointermove", handleJoystickMove, {
+      passive: false,
+    });
+    joystickArea.addEventListener("pointerup", handleJoystickEnd, {
+      passive: false,
+    });
+    joystickArea.addEventListener("pointercancel", handleJoystickEnd, {
+      passive: false,
+    });
+
+    // Button events
+    const buttonElements = buttonContainer.querySelectorAll(".mobile-btn");
+    buttonElements.forEach((btn) => {
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        handleButtonDown(btn.dataset.buttonId);
+      });
+      btn.addEventListener("pointerup", (e) => {
+        e.preventDefault();
+        handleButtonUp(btn.dataset.buttonId);
+      });
+      btn.addEventListener("pointercancel", (e) => {
+        e.preventDefault();
+        handleButtonUp(btn.dataset.buttonId);
+      });
+      btn.addEventListener("pointerleave", (e) => {
+        e.preventDefault();
+        handleButtonUp(btn.dataset.buttonId);
+      });
+    });
+  }
+
+  function handleJoystickStart(e) {
+    if (activePointerId !== null) return;
+    e.preventDefault();
+    activePointerId = e.pointerId;
+    joystickActive = true;
+    const rect = joystickBase.parentElement.getBoundingClientRect();
+    joystickBaseX = rect.left + rect.width / 2;
+    joystickBaseY = rect.top + rect.height / 2;
+    updateJoystick(e.clientX, e.clientY);
+  }
+
+  function handleJoystickMove(e) {
+    if (e.pointerId !== activePointerId || !joystickActive) return;
+    e.preventDefault();
+    updateJoystick(e.clientX, e.clientY);
+  }
+
+  function handleJoystickEnd(e) {
+    if (e.pointerId !== activePointerId) return;
+    e.preventDefault();
+    joystickActive = false;
+    activePointerId = null;
+    joystickX = 0;
+    joystickY = 0;
+    joystickKnobX = joystickBaseX;
+    joystickKnobY = joystickBaseY;
+    updateJoystickVisual();
+  }
+
+  function updateJoystick(clientX, clientY) {
+    const dx = clientX - joystickBaseX;
+    const dy = clientY - joystickBaseY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const maxDistance = joystickRadius - joystickKnobRadius;
+
+    if (distance > maxDistance) {
+      const angle = Math.atan2(dy, dx);
+      joystickX = Math.cos(angle) * maxDistance;
+      joystickY = Math.sin(angle) * maxDistance;
+    } else {
+      joystickX = dx;
+      joystickY = dy;
+    }
+
+    // Normalize to -1..1 range
+    joystickX = joystickX / maxDistance;
+    joystickY = joystickY / maxDistance;
+
+    // Apply deadzone
+    const deadzone = 0.1;
+    if (Math.abs(joystickX) < deadzone) joystickX = 0;
+    if (Math.abs(joystickY) < deadzone) joystickY = 0;
+
+    joystickKnobX = joystickBaseX + joystickX * maxDistance;
+    joystickKnobY = joystickBaseY + joystickY * maxDistance;
+
+    updateJoystickVisual();
+  }
+
+  function updateJoystickVisual() {
+    if (!joystickKnob) return;
+    const offsetX = joystickKnobX - joystickBaseX;
+    const offsetY = joystickKnobY - joystickBaseY;
+    joystickKnob.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+  }
+
+  function handleButtonDown(buttonId) {
+    if (!buttons[buttonId]) return;
+    buttons[buttonId].pressed = true;
+    buttons[buttonId].down = !prevButtonState[buttonId];
+    prevButtonState[buttonId] = true;
+
+    const btn = buttonContainer.querySelector(`.mobile-btn-${buttonId}`);
+    if (btn) {
+      btn.style.background = "rgba(255, 255, 255, 0.4)";
+      btn.style.transform = "scale(0.9)";
+    }
+  }
+
+  function handleButtonUp(buttonId) {
+    if (!buttons[buttonId]) return;
+    buttons[buttonId].pressed = false;
+    buttons[buttonId].up = prevButtonState[buttonId];
+    prevButtonState[buttonId] = false;
+
+    const btn = buttonContainer.querySelector(`.mobile-btn-${buttonId}`);
+    if (btn) {
+      btn.style.background = "rgba(255, 255, 255, 0.2)";
+      btn.style.transform = "scale(1)";
+    }
+  }
+
+  function updateButtonEdges() {
+    Object.keys(buttons).forEach((key) => {
+      buttons[key].down = false;
+      buttons[key].up = false;
+    });
+  }
+
+  function shouldShow() {
+    if (typeof window === "undefined") return false;
+    // Show on mobile devices (coarse pointer) or when width < 900px
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const isNarrow = window.innerWidth < 900;
+    return isCoarsePointer || isNarrow;
+  }
+
+  function updateVisibility() {
+    const shouldBeVisible = shouldShow();
+    if (shouldBeVisible === isVisible) return;
+
+    isVisible = shouldBeVisible;
+    if (!container) {
+      if (shouldBeVisible) {
+        createControls();
+      }
+      return;
+    }
+
+    container.style.display = shouldBeVisible ? "block" : "none";
+  }
+
+  // Public API
+  return {
+    init() {
+      updateVisibility();
+      window.addEventListener("resize", updateVisibility);
+      if (window.matchMedia) {
+        window
+          .matchMedia("(pointer: coarse)")
+          .addEventListener("change", updateVisibility);
+      }
+    },
+
+    getAxisX() {
+      return joystickX;
+    },
+
+    getAxisY() {
+      return joystickY;
+    },
+
+    isButtonDown(buttonId) {
+      return buttons[buttonId]?.down || false;
+    },
+
+    isButtonHeld(buttonId) {
+      return buttons[buttonId]?.pressed || false;
+    },
+
+    isButtonUp(buttonId) {
+      return buttons[buttonId]?.up || false;
+    },
+
+    clearEdges() {
+      updateButtonEdges();
+    },
+
+    updateVisibility() {
+      updateVisibility();
+    },
+  };
+})();
