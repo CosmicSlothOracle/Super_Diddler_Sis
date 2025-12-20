@@ -1,13 +1,13 @@
 /**
  * Netlify Function to receive and log analytics events
- * 
+ *
  * IMPORTANT: Netlify Functions run in a serverless environment with a read-only
  * filesystem (except /tmp). We cannot write to local files.
- * 
+ *
  * Instead, we log events using console.log(), which automatically appears in:
  * - Netlify Dashboard > Functions > log-event > Logs
  * - Netlify CLI: netlify functions:log
- * 
+ *
  * For production, consider integrating with external log services:
  * - Logtail, LogRocket, Sentry, or custom backend API
  */
@@ -80,7 +80,10 @@ exports.handler = async (event, context) => {
           data: evt.data,
           // Additional metadata
           receivedAt: new Date().toISOString(),
-          ip: event.headers?.["x-forwarded-for"] || event.headers?.["client-ip"] || "unknown",
+          ip:
+            event.headers?.["x-forwarded-for"] ||
+            event.headers?.["client-ip"] ||
+            "unknown",
           userAgent: event.headers?.["user-agent"] || "unknown",
         })
       );

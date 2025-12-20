@@ -112,6 +112,10 @@ window.AttackSystem = (() => {
 
     // Handle R1 attacks (Light attacks)
     if (inputs.r1Down && canUseAbility(p, "r1")) {
+      // Analytics: Track input action
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackInput("r1", p.padIndex);
+      }
       clearBeatMatchEffects();
       handleR1Attack(p, inputs, state, grounded, dt);
       // Track attack usage for tutorial
@@ -126,6 +130,10 @@ window.AttackSystem = (() => {
 
     // Handle R2 attacks (Heavy attacks)
     if (inputs.r2Down && canUseAbility(p, "r2")) {
+      // Analytics: Track input action
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackInput("r2", p.padIndex);
+      }
       clearBeatMatchEffects();
       handleR2Attack(p, inputs, state, grounded);
       // Track attack usage for tutorial
@@ -140,6 +148,10 @@ window.AttackSystem = (() => {
 
     // Handle L1 attacks (Special attacks)
     if (inputs.l1Down && canUseAbility(p, "l1")) {
+      // Analytics: Track input action
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackInput("l1", p.padIndex);
+      }
       clearBeatMatchEffects();
       handleL1Attack(p, inputs, state, grounded);
       // Track attack usage for tutorial
@@ -154,6 +166,10 @@ window.AttackSystem = (() => {
 
     // Handle L2 attacks (Charged attacks)
     if (inputs.l2Down && canUseAbility(p, "l2")) {
+      // Analytics: Track input action
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackInput("l2", p.padIndex);
+      }
       clearBeatMatchEffects();
       handleL2Attack(p, inputs, state, grounded);
       // Track attack usage for tutorial
@@ -168,6 +184,10 @@ window.AttackSystem = (() => {
 
     // Handle Ultimate attacks (do not consume beat match charges)
     if (inputs.ultiDown && canUseAbility(p, "ultimate")) {
+      // Analytics: Track input action
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackInput("ultimate", p.padIndex);
+      }
       handleUltimateAttack(p, inputs, state, grounded);
       return;
     }

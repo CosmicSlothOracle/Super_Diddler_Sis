@@ -283,7 +283,8 @@ window.AudioSystem = (() => {
         if (!audioContext) {
           // Use AudioDeviceManager for optimized AudioContext if available
           if (window.AudioDeviceManager) {
-            audioContext = window.AudioDeviceManager.createOptimizedAudioContext();
+            audioContext =
+              window.AudioDeviceManager.createOptimizedAudioContext();
           } else {
             // Fallback to standard AudioContext
             audioContext = new (window.AudioContext ||
@@ -494,6 +495,12 @@ window.AudioSystem = (() => {
       };
     } catch (err) {
       console.error("🎵 Failed to create Web Audio nodes:", err);
+      // Analytics: Track audio error
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackError(err, {
+          context: "audio_web_audio_nodes",
+        });
+      }
       return null;
     }
   }
@@ -590,6 +597,13 @@ window.AudioSystem = (() => {
     const trackConfig = TRACKS[trackName];
     if (!trackConfig) {
       console.error(`🎵 Unknown track: ${trackName}`);
+      // Analytics: Track audio error
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackError(
+          new Error(`Unknown audio track: ${trackName}`),
+          { context: "audio_unknown_track", trackName: trackName }
+        );
+      }
       return;
     }
 
@@ -692,6 +706,13 @@ window.AudioSystem = (() => {
           onEnd();
         } catch (err) {
           console.error("🎵 onEnd callback failed:", err);
+          // Analytics: Track audio error
+          if (window.AnalyticsClient) {
+            window.AnalyticsClient.trackError(err, {
+              context: "audio_onEnd_callback",
+              trackName: trackName,
+            });
+          }
         }
       }
     });
@@ -701,6 +722,21 @@ window.AudioSystem = (() => {
       console.error(
         `🎵 [DEBUG] Error details: code=${newTrack.error?.code}, message=${newTrack.error?.message}`
       );
+      // Analytics: Track audio error
+      if (window.AnalyticsClient) {
+        window.AnalyticsClient.trackError(
+          new Error(
+            `Audio error: ${newTrack.error?.message || "Unknown"} (code: ${
+              newTrack.error?.code || "unknown"
+            })`
+          ),
+          {
+            context: "audio_track_error",
+            trackName: trackName,
+            errorCode: newTrack.error?.code,
+          }
+        );
+      }
     });
 
     addTrackedEventListener(requestContext, newTrack, "stalled", () => {
@@ -866,6 +902,15 @@ window.AudioSystem = (() => {
           console.error(
             `🎵 [DEBUG] Track state: src=${newTrack.src}, readyState=${newTrack.readyState}, networkState=${newTrack.networkState}`
           );
+          // Analytics: Track audio error
+          if (window.AnalyticsClient) {
+            window.AnalyticsClient.trackError(err, {
+              context: "audio_playback_failed",
+              trackName: trackName,
+              readyState: newTrack.readyState,
+              networkState: newTrack.networkState,
+            });
+          }
         });
     };
 

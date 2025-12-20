@@ -8,39 +8,45 @@ Das Analytics-System sendet Events von den Usern an die Netlify Function `/api/l
 
 ### Option 1: Netlify Dashboard (Einfachste Methode)
 
-1. **Gehe zu deinem Netlify Dashboard**: https://app.netlify.com
+1. **Gehe zu deinem Netlify Dashboard**: <https://app.netlify.com>
 2. **Wähle dein Projekt** aus
 3. **Navigiere zu**: `Functions` → `log-event`
 4. **Klicke auf den Tab "Logs"**
 5. Hier siehst du alle Events in Echtzeit
 
 **Vorteile:**
+
 - Keine zusätzliche Konfiguration nötig
 - Echtzeit-Logs
 - Automatisch verfügbar
 
 **Nachteile:**
+
 - Logs werden nach 24-48 Stunden gelöscht (je nach Plan)
 - Keine erweiterte Filterung/Analyse
 
 ### Option 2: Netlify CLI (Für lokale Analyse)
 
 1. **Installiere Netlify CLI** (falls noch nicht installiert):
+
    ```bash
    npm install -g netlify-cli
    ```
 
 2. **Login zu Netlify**:
+
    ```bash
    netlify login
    ```
 
 3. **Logs live anzeigen**:
+
    ```bash
    netlify functions:log log-event
    ```
 
 4. **Logs exportieren** (optional):
+
    ```bash
    netlify functions:log log-event > logs-export.txt
    ```
@@ -62,9 +68,10 @@ netlify functions:log log-event | jq 'select(.eventType == "match_end")'
 Für eine professionelle Lösung solltest du die Events an einen externen Service senden:
 
 **Empfohlene Services:**
-- **Logtail** (https://logtail.com) - Einfach, günstig
-- **LogRocket** (https://logrocket.com) - Session Replay + Logs
-- **Sentry** (https://sentry.io) - Fokus auf Errors
+
+- **Logtail** (<https://logtail.com>) - Einfach, günstig
+- **LogRocket** (<https://logrocket.com>) - Session Replay + Logs
+- **Sentry** (<https://sentry.io>) - Fokus auf Errors
 - **Custom Backend API** - Eigene Lösung
 
 **Integration:**
@@ -75,17 +82,17 @@ Für eine professionelle Lösung solltest du die Events an einen externen Servic
 const LOGTAIL_SOURCE_TOKEN = process.env.LOGTAIL_SOURCE_TOKEN;
 
 if (LOGTAIL_SOURCE_TOKEN) {
-  await fetch('https://in.logtail.com', {
-    method: 'POST',
+  await fetch("https://in.logtail.com", {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${LOGTAIL_SOURCE_TOKEN}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LOGTAIL_SOURCE_TOKEN}`,
     },
     body: JSON.stringify({
       message: evt.eventType,
       metadata: evt.data,
       // ...
-    })
+    }),
   });
 }
 ```
@@ -124,15 +131,19 @@ Jedes Event wird als JSON-String geloggt:
 ## Wichtige Netlify-Einstellungen
 
 ### 1. Function-Logs aktivieren
+
 - **Automatisch aktiviert** - Keine zusätzliche Konfiguration nötig
 - Logs werden automatisch für alle Functions gespeichert
 
 ### 2. Environment Variables (Optional)
+
 Falls du externe Services nutzen willst, setze Environment Variables im Netlify Dashboard:
+
 - `Site settings` → `Environment variables`
 - Beispiel: `LOGTAIL_SOURCE_TOKEN=your_token_here`
 
 ### 3. Function Timeout
+
 - Standard: 10 Sekunden
 - Für Analytics reicht das aus
 - Falls nötig: `netlify.toml` → `[functions]` → `timeout = 10`
@@ -140,14 +151,17 @@ Falls du externe Services nutzen willst, setze Environment Variables im Netlify 
 ## Troubleshooting
 
 ### Problem: Keine Logs sichtbar
+
 - **Lösung**: Prüfe ob `analytics-config.js` → `enabled: true` ist
 - **Lösung**: Prüfe Browser Console auf Fehler beim Senden
 - **Lösung**: Prüfe Netlify Function Logs auf Errors
 
 ### Problem: CORS-Fehler
+
 - **Lösung**: Die Function hat bereits CORS-Headers. Falls Probleme: Prüfe `netlify.toml` Redirects
 
 ### Problem: Zu viele Events
+
 - **Lösung**: Passe `batchSize` in `analytics-config.js` an
 - **Lösung**: Deaktiviere `trackInputs` wenn nicht benötigt
 

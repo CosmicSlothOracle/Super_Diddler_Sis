@@ -1,24 +1,20 @@
 /**
  * Audio Device Manager
  *
- * Verwaltet Audio-Ein- und Ausgabegeräte:
+ * Verwaltet Audio-Ausgabegeräte:
  * - Listet verfügbare Geräte auf
  * - Erlaubt Geräte-Wechsel
  * - Erkennt automatisch Geräte-Wechsel
  * - Optimiert Sample-Rate für bessere Qualität
- * - Unterstützt Mikrofon mit hoher Qualität
  */
 
 window.AudioDeviceManager = (() => {
   let audioDevices = {
-    inputs: [],
     outputs: [],
-    currentInput: null,
     currentOutput: null,
   };
 
   let deviceChangeListeners = [];
-  let mediaStream = null;
   let audioContext = null;
   let preferredSampleRate = 48000; // 48kHz für bessere Qualität (Standard ist oft 44.1kHz)
 
@@ -28,17 +24,8 @@ window.AudioDeviceManager = (() => {
   async function init() {
     console.log("🎤 [AudioDeviceManager] Initializing...");
 
-    // Warte auf User-Interaction für Permissions
+    // Warte auf User-Interaction für enumerateDevices
     const initOnInteraction = async () => {
-      try {
-        // Request permissions für enumerateDevices (benötigt getUserMedia)
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log("🎤 [AudioDeviceManager] Permissions granted");
-      } catch (err) {
-        console.warn("🎤 [AudioDeviceManager] Could not request permissions:", err);
-        // Continue anyway - enumerateDevices might still work
-      }
-
       await refreshDevices();
       setupDeviceChangeListeners();
     };
@@ -56,14 +43,6 @@ window.AudioDeviceManager = (() => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
 
-      audioDevices.inputs = devices
-        .filter((d) => d.kind === "audioinput")
-        .map((d) => ({
-          deviceId: d.deviceId,
-          label: d.label || `Microphone ${audioDevices.inputs.length + 1}`,
-          groupId: d.groupId,
-        }));
-
       audioDevices.outputs = devices
         .filter((d) => d.kind === "audiooutput")
         .map((d) => ({
@@ -72,25 +51,21 @@ window.AudioDeviceManager = (() => {
           groupId: d.groupId,
         }));
 
-      // Setze Standard-Geräte falls nicht gesetzt
+      // Setze Standard-Gerät falls nicht gesetzt
       if (!audioDevices.currentOutput && audioDevices.outputs.length > 0) {
         audioDevices.currentOutput = audioDevices.outputs[0].deviceId;
       }
-      if (!audioDevices.currentInput && audioDevices.inputs.length > 0) {
-        audioDevices.currentInput = audioDevices.inputs[0].deviceId;
-      }
 
       console.log(
-        `🎤 [AudioDeviceManager] Found ${audioDevices.inputs.length} input(s), ${audioDevices.outputs.length} output(s)`
+        `🎤 [AudioDeviceManager] Found ${audioDevices.outputs.length} output(s)`
       );
 
       return {
-        inputs: audioDevices.inputs,
         outputs: audioDevices.outputs,
       };
     } catch (err) {
       console.error("🎤 [AudioDeviceManager] Failed to enumerate devices:", err);
-      return { inputs: [], outputs: [] };
+      return { outputs: [] };
     }
   }
 
@@ -106,7 +81,6 @@ window.AudioDeviceManager = (() => {
     navigator.mediaDevices.addEventListener("devicechange", async () => {
       console.log("🎤 [AudioDeviceManager] Device change detected, refreshing...");
       const oldOutput = audioDevices.currentOutput;
-      const oldInput = audioDevices.currentInput;
 
       await refreshDevices();
 
@@ -116,13 +90,6 @@ window.AudioDeviceManager = (() => {
           `🎤 [AudioDeviceManager] Output device changed: ${oldOutput} → ${audioDevices.currentOutput}`
         );
         notifyDeviceChange("output", audioDevices.currentOutput);
-      }
-
-      if (oldInput !== audioDevices.currentInput) {
-        console.log(
-          `🎤 [AudioDeviceManager] Input device changed: ${oldInput} → ${audioDevices.currentInput}`
-        );
-        notifyDeviceChange("input", audioDevices.currentOutput);
       }
     });
 
@@ -208,91 +175,6 @@ window.AudioDeviceManager = (() => {
     return true;
   }
 
-  /**
-   * Setzt das Eingabe-Gerät (Mikrofon)
-   */
-  async function setInputDevice(deviceId, constraints = null) {
-    if (!deviceId) {
-      console.warn("🎤 [AudioDeviceManager] No device ID provided");
-      return false;
-    }
-
-    // Prüfe ob Gerät existiert
-    const device = audioDevices.inputs.find((d) => d.deviceId === deviceId);
-    if (!device) {
-      console.warn(`🎤 [AudioDeviceManager] Input device not found: ${deviceId}`);
-      return false;
-    }
-
-    audioDevices.currentInput = deviceId;
-
-    // Stoppe alten Stream
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => track.stop());
-      mediaStream = null;
-    }
-
-    // Erstelle neuen Stream mit optimalen Constraints
-    const defaultConstraints = {
-      audio: {
-        deviceId: { exact: deviceId },
-        sampleRate: preferredSampleRate,
-        channelCount: 2, // Stereo
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        // Zusätzliche Qualitäts-Optionen
-        latency: 0.01, // Niedrige Latenz
-        sampleSize: 16, // 16-bit
-      },
-    };
-
-    const finalConstraints = constraints || defaultConstraints;
-
-    try {
-      mediaStream = await navigator.mediaDevices.getUserMedia(finalConstraints);
-      console.log(
-        `🎤 [AudioDeviceManager] Input device set to: ${device.label} (${preferredSampleRate}Hz)`
-      );
-
-      // Logge tatsächliche Constraints
-      const audioTrack = mediaStream.getAudioTracks()[0];
-      if (audioTrack) {
-        const settings = audioTrack.getSettings();
-        console.log("🎤 [AudioDeviceManager] Actual audio settings:", {
-          sampleRate: settings.sampleRate,
-          channelCount: settings.channelCount,
-          echoCancellation: settings.echoCancellation,
-          noiseSuppression: settings.noiseSuppression,
-          autoGainControl: settings.autoGainControl,
-        });
-      }
-
-      notifyDeviceChange("input", deviceId);
-      return true;
-    } catch (err) {
-      console.error("🎤 [AudioDeviceManager] Failed to set input device:", err);
-      return false;
-    }
-  }
-
-  /**
-   * Gibt den aktuellen MediaStream zurück (für Mikrofon-Zugriff)
-   */
-  function getMediaStream() {
-    return mediaStream;
-  }
-
-  /**
-   * Stoppt den aktuellen MediaStream
-   */
-  function stopMediaStream() {
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((track) => track.stop());
-      mediaStream = null;
-      console.log("🎤 [AudioDeviceManager] MediaStream stopped");
-    }
-  }
 
   /**
    * Fügt einen Listener für Geräte-Wechsel hinzu
@@ -318,9 +200,7 @@ window.AudioDeviceManager = (() => {
    */
   function getDevices() {
     return {
-      inputs: [...audioDevices.inputs],
       outputs: [...audioDevices.outputs],
-      currentInput: audioDevices.currentInput,
       currentOutput: audioDevices.currentOutput,
     };
   }
@@ -334,14 +214,6 @@ window.AudioDeviceManager = (() => {
     );
   }
 
-  /**
-   * Gibt das aktuelle Eingabe-Gerät zurück
-   */
-  function getCurrentInputDevice() {
-    return audioDevices.inputs.find(
-      (d) => d.deviceId === audioDevices.currentInput
-    );
-  }
 
   /**
    * Setzt die bevorzugte Sample-Rate
@@ -371,14 +243,10 @@ window.AudioDeviceManager = (() => {
     init,
     refreshDevices,
     setOutputDevice,
-    setInputDevice,
-    getMediaStream,
-    stopMediaStream,
     onDeviceChange,
     removeDeviceChangeListener,
     getDevices,
     getCurrentOutputDevice,
-    getCurrentInputDevice,
     createOptimizedAudioContext,
     setPreferredSampleRate,
     getSampleRate,
