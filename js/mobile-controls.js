@@ -80,9 +80,10 @@ window.MobileControls = (() => {
       width: ${joystickRadius * 2}px;
       height: ${joystickRadius * 2}px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
-      border: 2px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.15);
+      border: 3px solid rgba(255, 255, 255, 0.4);
       pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.2);
     `;
 
     joystickKnob = document.createElement("div");
@@ -94,10 +95,11 @@ window.MobileControls = (() => {
       width: ${joystickKnobRadius * 2}px;
       height: ${joystickKnobRadius * 2}px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.6);
-      border: 2px solid rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.7);
+      border: 3px solid rgba(255, 255, 255, 0.9);
       pointer-events: none;
-      transition: transform 0.1s ease-out;
+      transition: transform 0.08s ease-out;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.3);
     `;
 
     joystickArea.appendChild(joystickBase);
@@ -145,19 +147,21 @@ window.MobileControls = (() => {
         width: 100%;
         height: 100%;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.2);
-        border: 2px solid rgba(255, 255, 255, 0.4);
+        background: rgba(255, 255, 255, 0.25);
+        border: 3px solid rgba(255, 255, 255, 0.5);
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 11px;
         font-weight: bold;
-        color: rgba(255, 255, 255, 0.9);
+        color: rgba(255, 255, 255, 0.95);
         touch-action: none;
         user-select: none;
         transition: all 0.1s ease;
         text-align: center;
         line-height: 1.1;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
       `;
       buttonContainer.appendChild(btn);
     });
@@ -198,18 +202,22 @@ window.MobileControls = (() => {
     buttonElements.forEach((btn) => {
       btn.addEventListener("pointerdown", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         handleButtonDown(btn.dataset.buttonId);
       });
       btn.addEventListener("pointerup", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         handleButtonUp(btn.dataset.buttonId);
       });
       btn.addEventListener("pointercancel", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         handleButtonUp(btn.dataset.buttonId);
       });
       btn.addEventListener("pointerleave", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         handleButtonUp(btn.dataset.buttonId);
       });
     });
@@ -218,27 +226,39 @@ window.MobileControls = (() => {
   function handleJoystickStart(e) {
     if (activePointerId !== null) return;
     e.preventDefault();
+    e.stopPropagation();
     activePointerId = e.pointerId;
     joystickActive = true;
     const rect = joystickBase.parentElement.getBoundingClientRect();
     joystickBaseX = rect.left + rect.width / 2;
     joystickBaseY = rect.top + rect.height / 2;
+    // Update joystick position immediately on start
     updateJoystick(e.clientX, e.clientY);
   }
 
   function handleJoystickMove(e) {
     if (e.pointerId !== activePointerId || !joystickActive) return;
     e.preventDefault();
+    e.stopPropagation();
+    // Update base position in case of resize during interaction
+    const rect = joystickBase.parentElement.getBoundingClientRect();
+    joystickBaseX = rect.left + rect.width / 2;
+    joystickBaseY = rect.top + rect.height / 2;
     updateJoystick(e.clientX, e.clientY);
   }
 
   function handleJoystickEnd(e) {
     if (e.pointerId !== activePointerId) return;
     e.preventDefault();
+    e.stopPropagation();
     joystickActive = false;
     activePointerId = null;
     joystickX = 0;
     joystickY = 0;
+    // Update base position before resetting knob
+    const rect = joystickBase.parentElement.getBoundingClientRect();
+    joystickBaseX = rect.left + rect.width / 2;
+    joystickBaseY = rect.top + rect.height / 2;
     joystickKnobX = joystickBaseX;
     joystickKnobY = joystickBaseY;
     updateJoystickVisual();
@@ -289,8 +309,10 @@ window.MobileControls = (() => {
 
     const btn = buttonContainer.querySelector(`.mobile-btn-${buttonId}`);
     if (btn) {
-      btn.style.background = "rgba(255, 255, 255, 0.4)";
-      btn.style.transform = "scale(0.9)";
+      btn.style.background = "rgba(255, 255, 255, 0.5)";
+      btn.style.borderColor = "rgba(255, 255, 255, 0.9)";
+      btn.style.transform = "scale(0.92)";
+      btn.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(255, 255, 255, 0.3)";
     }
   }
 
@@ -302,8 +324,10 @@ window.MobileControls = (() => {
 
     const btn = buttonContainer.querySelector(`.mobile-btn-${buttonId}`);
     if (btn) {
-      btn.style.background = "rgba(255, 255, 255, 0.2)";
+      btn.style.background = "rgba(255, 255, 255, 0.25)";
+      btn.style.borderColor = "rgba(255, 255, 255, 0.5)";
       btn.style.transform = "scale(1)";
+      btn.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.2)";
     }
   }
 
@@ -335,13 +359,36 @@ window.MobileControls = (() => {
     }
 
     container.style.display = shouldBeVisible ? "block" : "none";
+
+    // Recalculate joystick base position when visibility changes
+    if (shouldBeVisible && joystickBase) {
+      const rect = joystickBase.parentElement.getBoundingClientRect();
+      joystickBaseX = rect.left + rect.width / 2;
+      joystickBaseY = rect.top + rect.height / 2;
+      joystickKnobX = joystickBaseX;
+      joystickKnobY = joystickBaseY;
+      updateJoystickVisual();
+    }
   }
 
   // Public API
   return {
     init() {
       updateVisibility();
-      window.addEventListener("resize", updateVisibility);
+      const handleResize = () => {
+        updateVisibility();
+        // Recalculate joystick position on resize
+        if (joystickBase && joystickActive) {
+          const rect = joystickBase.parentElement.getBoundingClientRect();
+          joystickBaseX = rect.left + rect.width / 2;
+          joystickBaseY = rect.top + rect.height / 2;
+        }
+      };
+      window.addEventListener("resize", handleResize);
+      window.addEventListener("orientationchange", () => {
+        // Delay to allow browser to update layout
+        setTimeout(handleResize, 100);
+      });
       if (window.matchMedia) {
         window
           .matchMedia("(pointer: coarse)")

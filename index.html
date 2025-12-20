@@ -27,6 +27,8 @@
         margin: 0;
         height: 100%;
         background: #000;
+        touch-action: manipulation; /* Prevent double-tap zoom */
+        overscroll-behavior: contain; /* Stop pull-to-refresh */
       }
       #root {
         display: grid;
@@ -42,6 +44,7 @@
       }
       #overlay {
         position: fixed;
+        pointer-events: none;
         top: 8px;
         left: 50%;
         transform: translateX(-50%);

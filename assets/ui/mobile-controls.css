@@ -1,15 +1,26 @@
 /* Mobile Controls Styles - Additional styling if needed */
 #mobile-controls {
   font-family: 'Inter', sans-serif;
+  /* Ensure controls are always on top */
+  z-index: 10000 !important;
 }
 
 #mobile-controls .mobile-btn {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  /* Better touch target - minimum 44x44px recommended by Apple/Google */
+  min-width: 44px;
+  min-height: 44px;
+  /* Improve text readability */
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+  /* Better visual feedback */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 #mobile-controls .mobile-btn:active {
-  opacity: 0.8;
+  opacity: 0.7;
+  transform: scale(0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* Hide controls on desktop when not needed */
@@ -21,10 +32,6 @@
 
 /* Landscape orientation adjustments */
 @media (orientation: landscape) and (max-height: 600px) {
-  #mobile-controls {
-    /* Adjust positioning for very short screens */
-  }
-
   #mobile-controls > div:first-child {
     /* Joystick area */
     bottom: 10px;
@@ -44,20 +51,63 @@
 
   #mobile-controls .mobile-btn {
     font-size: 9px;
+    min-width: 40px;
+    min-height: 40px;
   }
 }
 
 /* Portrait orientation adjustments */
 @media (orientation: portrait) {
   #mobile-controls > div:first-child {
-    /* Joystick area */
+    /* Joystick area - larger in portrait for easier use */
     bottom: 15px;
     left: 15px;
+    width: 150px;
+    height: 150px;
   }
 
   #mobile-controls > div:last-child {
     /* Button container */
     bottom: 15px;
     right: 15px;
+    width: 260px;
+    height: 260px;
   }
+
+  #mobile-controls .mobile-btn {
+    font-size: 12px;
+  }
+}
+
+/* Small screen adjustments */
+@media (max-width: 480px) {
+  #mobile-controls > div:first-child {
+    width: 130px;
+    height: 130px;
+    bottom: 10px;
+    left: 10px;
+  }
+
+  #mobile-controls > div:last-child {
+    width: 220px;
+    height: 220px;
+    bottom: 10px;
+    right: 10px;
+    gap: 8px;
+  }
+
+  #mobile-controls .mobile-btn {
+    font-size: 10px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+}
+
+/* Prevent text selection and context menus */
+#mobile-controls * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }

@@ -5,6 +5,7 @@ window.TouchNavigation = (() => {
   let state = null;
   let lastTouchTime = 0;
   const TOUCH_DEBOUNCE_MS = 200; // Prevent double-taps
+  let activePointerId = null;
 
   function init(canvasElement, gameState) {
     canvas = canvasElement;
@@ -14,12 +15,15 @@ window.TouchNavigation = (() => {
     // Use pointer events for better compatibility
     canvas.addEventListener("pointerdown", handleTouch, { passive: false });
     canvas.addEventListener("pointerup", handleTouchEnd, { passive: false });
+    canvas.addEventListener("pointercancel", handleTouchEnd, { passive: false });
   }
 
   function getCanvasCoordinates(e) {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
+    // Account for device pixel ratio for accurate coordinate mapping
+    const dpr = window.devicePixelRatio || 1;
+    const scaleX = (canvas.width / dpr) / rect.width;
+    const scaleY = (canvas.height / dpr) / rect.height;
     return {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY,
@@ -30,10 +34,18 @@ window.TouchNavigation = (() => {
     if (!state || !canvas) return;
 
     // Only handle touch events (not mouse) when in mobile mode
+    if (activePointerId !== null && e.pointerId !== activePointerId) {
+      return; // Ignore secondary touches while a menu pointer is active
+    }
     const isMobile =
       state.performanceMode || window.matchMedia("(pointer: coarse)").matches;
     if (!isMobile && e.pointerType === "mouse") {
       return; // Skip mouse events on desktop
+    }
+
+    if (activePointerId === null) {
+      activePointerId = e.pointerId;
+      canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
     }
 
     // Allow touch and pen events
@@ -42,7 +54,9 @@ window.TouchNavigation = (() => {
     }
 
     const now = Date.now();
-    if (now - lastTouchTime < TOUCH_DEBOUNCE_MS) {
+    // Reduced debounce time for better responsiveness on mobile
+    const debounceTime = isMobile ? 100 : TOUCH_DEBOUNCE_MS;
+    if (now - lastTouchTime < debounceTime) {
       return; // Debounce
     }
     lastTouchTime = now;
@@ -95,6 +109,10 @@ window.TouchNavigation = (() => {
   }
 
   function handleTouchEnd(e) {
+    if (e.pointerId === activePointerId) {
+      canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId);
+      activePointerId = null;
+    }
     // Can be used for drag gestures if needed
   }
 
