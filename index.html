@@ -102,7 +102,7 @@
             .register("/sw.js?v=20250120")
             .then((reg) => {
               console.log("[SW] Service Worker registered:", reg.scope);
-              
+
               // Listen for service worker updates
               reg.addEventListener("updatefound", () => {
                 const newWorker = reg.installing;
@@ -118,7 +118,7 @@
             .catch((err) => {
               console.warn("[SW] Service Worker registration failed:", err);
             });
-          
+
           // Listen for messages from service worker
           navigator.serviceWorker.addEventListener("message", (event) => {
             if (event.data && event.data.type === "SW_UPDATED") {

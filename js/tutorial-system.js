@@ -1631,7 +1631,11 @@ window.TutorialSystem = (() => {
     }
 
     // Transition to character select menu
-    state.gameMode = "CHARACTER_SELECT";
+    if (window.setGameMode) {
+      window.setGameMode("CHARACTER_SELECT");
+    } else {
+      state.gameMode = "CHARACTER_SELECT";
+    }
     if (state.selection) {
       state.selection.p1Locked = false;
       state.selection.p2Locked = false;

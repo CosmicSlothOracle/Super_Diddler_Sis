@@ -346,22 +346,44 @@ window.MobileControls = (() => {
     return isCoarsePointer || isNarrow;
   }
 
-  function updateVisibility() {
-    const shouldBeVisible = shouldShow();
-    if (shouldBeVisible === isVisible) return;
+  function shouldShowInGameMode(gameMode) {
+    // Only show controls when actually playing (not in menus)
+    return gameMode === "PLAYING";
+  }
 
-    isVisible = shouldBeVisible;
+  function updateVisibility(gameMode = null) {
+    // Check if device should show mobile controls at all
+    const deviceShouldShow = shouldShow();
+    if (!deviceShouldShow) {
+      // Hide if not mobile device
+      if (container) {
+        container.style.display = "none";
+      }
+      isVisible = false;
+      return;
+    }
+
+    // Check if we should show based on game mode
+    const shouldShowControls = gameMode ? shouldShowInGameMode(gameMode) : false;
+    
+    // Only update if visibility actually changed
+    if (shouldShowControls === isVisible && container) {
+      return;
+    }
+
+    isVisible = shouldShowControls;
+    
     if (!container) {
-      if (shouldBeVisible) {
+      if (shouldShowControls) {
         createControls();
       }
       return;
     }
 
-    container.style.display = shouldBeVisible ? "block" : "none";
+    container.style.display = shouldShowControls ? "block" : "none";
 
     // Recalculate joystick base position when visibility changes
-    if (shouldBeVisible && joystickBase) {
+    if (shouldShowControls && joystickBase) {
       const rect = joystickBase.parentElement.getBoundingClientRect();
       joystickBaseX = rect.left + rect.width / 2;
       joystickBaseY = rect.top + rect.height / 2;
@@ -420,8 +442,13 @@ window.MobileControls = (() => {
       updateButtonEdges();
     },
 
-    updateVisibility() {
-      updateVisibility();
+    updateVisibility(gameMode) {
+      updateVisibility(gameMode);
+    },
+
+    setGameMode(gameMode) {
+      // Called when game mode changes to update visibility
+      updateVisibility(gameMode);
     },
   };
 })();

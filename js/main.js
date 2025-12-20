@@ -19,6 +19,13 @@
 
   const state = GameState.createState();
   window.state = state; // Make state globally accessible for WebGL renderer
+  
+  // Helper function to set game mode and update mobile controls
+  // Will be defined later after MobileControls.init(), but we need it early
+  let setGameMode = (newMode) => {
+    state.gameMode = newMode;
+  };
+  
   state.gameMode = "LOADING"; // NEW: Game mode state machine
 
   // NEW: Performance mode for mobile devices
@@ -737,7 +744,7 @@
           state.tutorial.transitionToPart2 = false;
           const tutorialPart2StagePath =
             "levels/sidescroller/ninja_stage/sections/pvp_stage_2";
-          state.gameMode = "LOADING";
+          setGameMode("LOADING");
           startGame(tutorialPart2StagePath);
           break;
         }
@@ -746,7 +753,7 @@
           state.tutorial.transitionToPart3 = false;
           const tutorialPart3StagePath =
             "levels/sidescroller/ninja_stage/sections/pvp_stage_3";
-          state.gameMode = "LOADING";
+          setGameMode("LOADING");
           startGame(tutorialPart3StagePath);
           break;
         }
@@ -1559,7 +1566,7 @@
       !state.selection.p2Locked &&
       (p1Back || p2Back)
     ) {
-      state.gameMode = "GAME_TYPE_SELECT";
+      setGameMode("GAME_TYPE_SELECT");
       // Reset character selection state
       state.selection.p1Locked = false;
       state.selection.p2Locked = false;
@@ -1589,7 +1596,7 @@
         // Training mode: P1 locked -> start training stage immediately
         const trainingStagePath =
           "levels/sidescroller/ninja_stage/sections/training_stage";
-        state.gameMode = "LOADING";
+        setGameMode("LOADING");
         InputHandler.clearInputEdges(state);
         startGame(trainingStagePath);
         return; // Exit early to prevent double input clear
@@ -1597,13 +1604,13 @@
         // Story mode (Tutorial): P1 locked -> start tutorial stage
         const tutorialStagePath =
           "levels/sidescroller/ninja_stage/sections/pvp_stage_tutorial_scaled";
-        state.gameMode = "LOADING";
+        setGameMode("LOADING");
         InputHandler.clearInputEdges(state);
         startGame(tutorialStagePath);
         return; // Exit early to prevent double input clear
       } else if (state.selection.p2Locked) {
         // Normal mode: both players locked -> stage select
-        state.gameMode = "STAGE_SELECT";
+        setGameMode("STAGE_SELECT");
         // Menu loop continues playing (no need to stop/restart)
         InputHandler.clearInputEdges(state);
         return; // Exit early to prevent double input clear
@@ -1691,14 +1698,14 @@
     }
     if (confirm) {
       // Transition to game mode select instead of starting game directly
-      state.gameMode = "GAME_MODE_SELECT";
+      setGameMode("GAME_MODE_SELECT");
       state.selectedGameMode = "classic"; // Reset to classic by default
       // Stop menu loop - game mode select has no music
       AudioSystem.stopMusic(0.5);
     }
     if (back) {
       // Return to character select
-      state.gameMode = "CHARACTER_SELECT";
+      setGameMode("CHARACTER_SELECT");
       state.selection.p1Locked = false;
       state.selection.p2Locked = false;
       // Analytics: Track game mode change
@@ -1763,14 +1770,14 @@
 
       if (selectedType === "story") {
         // Tutorial mode: go directly to character select
-        state.gameMode = "CHARACTER_SELECT";
+        setGameMode("CHARACTER_SELECT");
         state.isStoryMode = true; // Keep flag name for compatibility
         // Reset character selection state
         state.selection.p1Locked = false;
         state.selection.p2Locked = false;
       } else {
         // PvP mode: go to character select (then stage select)
-        state.gameMode = "CHARACTER_SELECT";
+        setGameMode("CHARACTER_SELECT");
         state.isStoryMode = false;
         // Reset character selection state
         state.selection.p1Locked = false;
@@ -1780,7 +1787,7 @@
 
     if (back) {
       // Return to title intro
-      state.gameMode = "TITLE_INTRO";
+      setGameMode("TITLE_INTRO");
     }
 
     InputHandler.clearInputEdges(state);
@@ -1853,7 +1860,7 @@
     state.titleIntro.startTime = state.lastTime;
     state.titleIntro.currentFrame = 0;
     state.titleIntro.frameTime = 0; // Reset frame accumulator
-    state.gameMode = "TITLE_INTRO";
+    setGameMode("TITLE_INTRO");
 
     // Play menu loop music (loops continuously)
     AudioSystem.playTrack("MENU_LOOP");
@@ -1958,7 +1965,7 @@
     if (anyKeyPressed || gamepadPressed) {
       // Skip intro and go to game type selection
       state.titleIntro.isActive = false;
-      state.gameMode = "GAME_TYPE_SELECT";
+      setGameMode("GAME_TYPE_SELECT");
       // Set cooldown to prevent accidental confirmation
       state.inputCooldown.confirmCooldown = 0.3; // 300ms cooldown
       // Menu loop continues playing (no need to restart)
@@ -2067,7 +2074,7 @@
       if (anim.duration >= anim.maxDuration) {
         anim.isComplete = true;
         // Automatic transition to stage select
-        state.gameMode = "STAGE_SELECT";
+        setGameMode("STAGE_SELECT");
         // Stop character select music when entering stage select
         AudioSystem.stopMusic(0.5);
         // Analytics: Track game mode change and character selection
@@ -2087,7 +2094,7 @@
   }
 
   async function startGame(stagePath) {
-    state.gameMode = "LOADING";
+    setGameMode("LOADING");
     overlay.textContent = "Loading stage…";
 
     // Safety: clear any leftover freeze frames or screen shake from previous session
@@ -2632,7 +2639,7 @@
         }
       }, songDelay + 3000); // Wait 3 seconds after music starts for stable detection
 
-      state.gameMode = "PLAYING";
+      setGameMode("PLAYING");
 
       // Analytics: Track match start
       if (window.AnalyticsClient) {
@@ -2664,7 +2671,7 @@
       console.error("Error starting game:", err);
       overlay.textContent =
         "Error: " + err.message + " (Press START/ESC to return)";
-      state.gameMode = "ERROR"; // Set specific error state
+      setGameMode("ERROR"); // Set specific error state
       // Analytics: Track error
       if (window.AnalyticsClient) {
         window.AnalyticsClient.trackError(err, { context: "startGame" });
@@ -3040,7 +3047,7 @@
         // Enter training mode: go to character selection (only P1 selects)
         state.modal.isOpen = false;
         state.isTrainingMode = true;
-        state.gameMode = "CHARACTER_SELECT";
+        setGameMode("CHARACTER_SELECT");
         state.selection.p1Locked = false;
         state.selection.p2Locked = false;
         AudioSystem.stopMusic(0.5);
@@ -3051,7 +3058,7 @@
         // Return to character selection
         state.modal.isOpen = false;
         state.isTrainingMode = false; // Reset training mode when manually going to character select
-        state.gameMode = "CHARACTER_SELECT";
+        setGameMode("CHARACTER_SELECT");
         state.selection.p1Locked = false;
         state.selection.p2Locked = false;
         AudioSystem.stopMusic(0.5);
@@ -3061,7 +3068,7 @@
       case "stage_select":
         // Return to stage selection with same character selection
         state.modal.isOpen = false;
-        state.gameMode = "STAGE_SELECT";
+        setGameMode("STAGE_SELECT");
         AudioSystem.stopMusic(0.5);
         AudioSystem.playTrack("MENU_LOOP");
         break;
@@ -3301,12 +3308,23 @@
       // Initialize mobile controls
       if (window.MobileControls) {
         window.MobileControls.init();
+        // Initially hide controls (only show in PLAYING mode)
+        window.MobileControls.setGameMode(state.gameMode);
       }
 
       // Initialize touch navigation
       if (window.TouchNavigation) {
         window.TouchNavigation.init(canvas, state);
       }
+
+      // Update setGameMode helper to include mobile controls update
+      setGameMode = (newMode) => {
+        state.gameMode = newMode;
+        if (window.MobileControls) {
+          window.MobileControls.setGameMode(newMode);
+        }
+      };
+      window.setGameMode = setGameMode; // Make globally accessible
 
       window.addEventListener("resize", handleResize);
       handleResize();
@@ -3361,7 +3379,7 @@
       }
 
       // Start with Title Screen
-      state.gameMode = "TITLE_SCREEN";
+      setGameMode("TITLE_SCREEN");
       overlay.textContent = ""; // Hide loading overlay
       requestAnimationFrame(loop);
     } catch (err) {
