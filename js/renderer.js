@@ -181,10 +181,24 @@ window.Renderer = (() => {
     // Translate to the letterboxed position
     ctx.translate(state.viewport.x, state.viewport.y);
 
-    // Scale the context to fit the game world into the letterboxed viewport
-    const scaleX = state.viewport.width / GameState.CONSTANTS.NATIVE_WIDTH;
-    const scaleY = state.viewport.height / GameState.CONSTANTS.NATIVE_HEIGHT;
-    ctx.scale(scaleX, scaleY);
+    // Scale the context to fit the game world into the viewport
+    // Use effective native dimensions if device aspect ratio is matched
+    const nativeWidth = state.effectiveNativeWidth ?? GameState.CONSTANTS.NATIVE_WIDTH;
+    const nativeHeight = state.effectiveNativeHeight ?? GameState.CONSTANTS.NATIVE_HEIGHT;
+    
+    const scaleX = state.viewport.width / nativeWidth;
+    const scaleY = state.viewport.height / nativeHeight;
+    
+    // If matching device aspect, use uniform scaling to prevent distortion
+    // Otherwise use different scales for letterboxing
+    if (state.viewport.matchesDevice) {
+      // Use uniform scale (min of X/Y) to maintain proportions
+      const uniformScale = Math.min(scaleX, scaleY);
+      ctx.scale(uniformScale, uniformScale);
+    } else {
+      // Use different scales for letterboxing (maintains 16:9)
+      ctx.scale(scaleX, scaleY);
+    }
 
     // --- START OF VIRTUAL RESOLUTION DRAWING ---
 

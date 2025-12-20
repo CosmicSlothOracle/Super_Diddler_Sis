@@ -1210,21 +1210,44 @@
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
 
-    const ratio = C.NATIVE_WIDTH / C.NATIVE_HEIGHT;
-    let newWidth = screenWidth;
-    let newHeight = newWidth / ratio;
+    // Check if we should match device aspect ratio (mobile) or maintain fixed ratio (desktop)
+    const isMobile = state.performanceMode || window.matchMedia("(pointer: coarse)").matches;
+    const matchDeviceAspectRatio = isMobile; // Match device aspect on mobile, fixed ratio on desktop
 
-    if (newHeight > screenHeight) {
+    let newWidth, newHeight;
+    let effectiveAspectRatio;
+
+    if (matchDeviceAspectRatio) {
+      // Mobile: Use device aspect ratio (fill entire screen)
+      newWidth = screenWidth;
       newHeight = screenHeight;
-      newWidth = newHeight * ratio;
+      effectiveAspectRatio = screenWidth / screenHeight;
+      
+      // Update NATIVE dimensions to match device aspect ratio for rendering
+      // This allows the game to use the full screen without letterboxing
+      state.effectiveNativeWidth = C.NATIVE_WIDTH;
+      state.effectiveNativeHeight = C.NATIVE_HEIGHT * (C.NATIVE_WIDTH / C.NATIVE_HEIGHT) / effectiveAspectRatio;
+    } else {
+      // Desktop: Maintain fixed 16:9 aspect ratio with letterboxing
+      const ratio = C.NATIVE_WIDTH / C.NATIVE_HEIGHT;
+      newWidth = screenWidth;
+      newHeight = newWidth / ratio;
+
+      if (newHeight > screenHeight) {
+        newHeight = screenHeight;
+        newWidth = newHeight * ratio;
+      }
+      
+      effectiveAspectRatio = ratio;
+      state.effectiveNativeWidth = C.NATIVE_WIDTH;
+      state.effectiveNativeHeight = C.NATIVE_HEIGHT;
     }
 
     // Canvas für WebGL vorbereiten
     canvas.width = newWidth;
     canvas.height = newHeight;
 
-    // Set CSS dimensions to match internal resolution (prevents stretching)
-    // This maintains aspect ratio and allows black bars (letterboxing) to appear
+    // Set CSS dimensions to match internal resolution
     canvas.style.width = newWidth + "px";
     canvas.style.height = newHeight + "px";
 
@@ -1233,7 +1256,8 @@
     canvas.style.imageRendering = "crisp-edges";
 
     // Stelle sicher, dass Canvas WebGL-fähig ist
-    console.log("Canvas resized to:", newWidth, "x", newHeight);
+    console.log("Canvas resized to:", newWidth, "x", newHeight, 
+                `(aspect: ${effectiveAspectRatio.toFixed(2)}, ${matchDeviceAspectRatio ? 'device-matched' : 'fixed-ratio'})`);
 
     // Store the viewport info for the renderer
     // Note: viewport.x and viewport.y are 0 since canvas is centered by CSS (#root with place-items: center)
@@ -1242,6 +1266,8 @@
       height: newHeight,
       x: 0, // Canvas is centered by CSS, no translation needed
       y: 0, // Canvas is centered by CSS, no translation needed
+      aspectRatio: effectiveAspectRatio,
+      matchesDevice: matchDeviceAspectRatio,
     };
   }
 
