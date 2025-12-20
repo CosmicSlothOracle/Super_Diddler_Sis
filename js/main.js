@@ -19,13 +19,13 @@
 
   const state = GameState.createState();
   window.state = state; // Make state globally accessible for WebGL renderer
-  
+
   // Helper function to set game mode and update mobile controls
   // Will be defined later after MobileControls.init(), but we need it early
   let setGameMode = (newMode) => {
     state.gameMode = newMode;
   };
-  
+
   state.gameMode = "LOADING"; // NEW: Game mode state machine
 
   // NEW: Performance mode for mobile devices

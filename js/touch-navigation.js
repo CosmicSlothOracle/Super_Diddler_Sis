@@ -99,6 +99,12 @@ window.TouchNavigation = (() => {
     // Handle different game modes
     if (state.modal?.isOpen) {
       handleModalTouch(coords);
+    } else if (state.gameMode === "TITLE_INTRO") {
+      handleTitleIntroTouch(coords);
+    } else if (state.gameMode === "GAME_TYPE_SELECT") {
+      handleGameTypeSelectTouch(coords);
+    } else if (state.gameMode === "GAME_MODE_SELECT") {
+      handleGameModeSelectTouch(coords);
     } else if (state.gameMode === "CHARACTER_SELECT") {
       handleCharacterSelectTouch(coords);
     } else if (state.gameMode === "STAGE_SELECT") {
@@ -273,6 +279,118 @@ window.TouchNavigation = (() => {
     // Title screen - touch anywhere to start
     if (state.gameMode === "TITLE_SCREEN") {
       state.input.keysPressed.add("Enter");
+    }
+  }
+
+  function handleTitleIntroTouch(coords) {
+    // Title intro - touch anywhere to skip (if skip is enabled)
+    if (state.gameMode === "TITLE_INTRO" && state.titleIntro?.canSkip) {
+      // Simulate any key press to trigger skip
+      state.input.keysPressed.add("Enter");
+    }
+  }
+
+  function handleGameTypeSelectTouch(coords) {
+    // Game type selection: PVP (left) or TUTORIAL (right)
+    if (!state.gameTypeSelection) {
+      state.gameTypeSelection = { selectedType: "pvp" };
+    }
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const typeSpacing = 400;
+    const buttonSize = 300;
+    const buttonHalf = buttonSize / 2;
+
+    // PVP button (left)
+    const pvpX = centerX - typeSpacing / 2;
+    const pvpLeft = pvpX - buttonHalf;
+    const pvpRight = pvpX + buttonHalf;
+    const pvpTop = centerY - buttonHalf;
+    const pvpBottom = centerY + buttonHalf;
+
+    // TUTORIAL button (right)
+    const tutorialX = centerX + typeSpacing / 2;
+    const tutorialLeft = tutorialX - buttonHalf;
+    const tutorialRight = tutorialX + buttonHalf;
+    const tutorialTop = centerY - buttonHalf;
+    const tutorialBottom = centerY + buttonHalf;
+
+    // Check which button was touched
+    if (
+      coords.x >= pvpLeft &&
+      coords.x <= pvpRight &&
+      coords.y >= pvpTop &&
+      coords.y <= pvpBottom
+    ) {
+      // PVP selected
+      state.gameTypeSelection.selectedType = "pvp";
+      // Auto-confirm after short delay
+      setTimeout(() => {
+        state.input.keysPressed.add("Enter");
+      }, 200);
+    } else if (
+      coords.x >= tutorialLeft &&
+      coords.x <= tutorialRight &&
+      coords.y >= tutorialTop &&
+      coords.y <= tutorialBottom
+    ) {
+      // TUTORIAL selected
+      state.gameTypeSelection.selectedType = "story";
+      // Auto-confirm after short delay
+      setTimeout(() => {
+        state.input.keysPressed.add("Enter");
+      }, 200);
+    }
+  }
+
+  function handleGameModeSelectTouch(coords) {
+    // Game mode selection: Classic (left) or Dance (right)
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const modeSpacing = 400;
+    const buttonSize = 300;
+    const buttonHalf = buttonSize / 2;
+
+    // Classic button (left)
+    const classicX = centerX - modeSpacing / 2;
+    const classicLeft = classicX - buttonHalf;
+    const classicRight = classicX + buttonHalf;
+    const classicTop = centerY - buttonHalf;
+    const classicBottom = centerY + buttonHalf;
+
+    // Dance button (right)
+    const danceX = centerX + modeSpacing / 2;
+    const danceLeft = danceX - buttonHalf;
+    const danceRight = danceX + buttonHalf;
+    const danceTop = centerY - buttonHalf;
+    const danceBottom = centerY + buttonHalf;
+
+    // Check which button was touched
+    if (
+      coords.x >= classicLeft &&
+      coords.x <= classicRight &&
+      coords.y >= classicTop &&
+      coords.y <= classicBottom
+    ) {
+      // Classic selected
+      state.selectedGameMode = "classic";
+      // Auto-confirm after short delay
+      setTimeout(() => {
+        state.input.keysPressed.add("Enter");
+      }, 200);
+    } else if (
+      coords.x >= danceLeft &&
+      coords.x <= danceRight &&
+      coords.y >= danceTop &&
+      coords.y <= danceBottom
+    ) {
+      // Dance selected
+      state.selectedGameMode = "dance";
+      // Auto-confirm after short delay
+      setTimeout(() => {
+        state.input.keysPressed.add("Enter");
+      }, 200);
     }
   }
 

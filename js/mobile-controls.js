@@ -365,14 +365,14 @@ window.MobileControls = (() => {
 
     // Check if we should show based on game mode
     const shouldShowControls = gameMode ? shouldShowInGameMode(gameMode) : false;
-    
+
     // Only update if visibility actually changed
     if (shouldShowControls === isVisible && container) {
       return;
     }
 
     isVisible = shouldShowControls;
-    
+
     if (!container) {
       if (shouldShowControls) {
         createControls();
