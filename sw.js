@@ -1,5 +1,6 @@
 // Service Worker for PWA - Cache-first strategy for static assets
-const CACHE_NAME = "beatfighter-v1";
+// IMPORTANT: Increment version when deploying new code to force cache refresh
+const CACHE_NAME = "beatfighter-v2-20250120";
 const CRITICAL_ASSETS = [
   "/",
   "/index.html",
@@ -59,13 +60,28 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((cacheNames) => {
+        // Delete ALL old caches to force fresh fetch
         return Promise.all(
           cacheNames
             .filter((name) => name !== CACHE_NAME)
-            .map((name) => caches.delete(name))
+            .map((name) => {
+              console.log("[SW] Deleting old cache:", name);
+              return caches.delete(name);
+            })
         );
       })
-      .then(() => self.clients.claim())
+      .then(() => {
+        // Force all clients to reload to get new service worker
+        return self.clients.claim();
+      })
+      .then(() => {
+        // Notify all clients to reload
+        return self.clients.matchAll().then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({ type: "SW_UPDATED", cacheName: CACHE_NAME });
+          });
+        });
+      })
   );
 });
 
@@ -83,7 +99,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for static assets (js, css, images, audio)
+  // Network-first for versioned files (JS/CSS with ?v= query) to ensure fresh updates
+  if (url.search && url.search.includes("v=")) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, clone);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          // Fallback to cache if network fails
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Cache-first for static assets (js, css, images, audio) without version
   if (
     url.pathname.startsWith("/js/") ||
     url.pathname.startsWith("/assets/") ||

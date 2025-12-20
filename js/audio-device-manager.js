@@ -41,7 +41,18 @@ window.AudioDeviceManager = (() => {
    */
   async function refreshDevices() {
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
+      // Note: enumerateDevices() may trigger microphone permission prompt on some browsers
+      // even though we only need output devices. This is a browser limitation.
+      // We catch and ignore permission errors to avoid blocking the app.
+      let devices;
+      try {
+        devices = await navigator.mediaDevices.enumerateDevices();
+      } catch (permError) {
+        // User denied microphone permission or browser requires it for enumerateDevices
+        // This is fine - we can still use default audio output
+        console.log("🎤 [AudioDeviceManager] Device enumeration skipped (permission not granted)");
+        return;
+      }
 
       audioDevices.outputs = devices
         .filter((d) => d.kind === "audiooutput")

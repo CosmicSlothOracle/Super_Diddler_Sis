@@ -8,6 +8,7 @@
     />
     <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
@@ -98,13 +99,33 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker
-            .register("/sw.js")
+            .register("/sw.js?v=20250120")
             .then((reg) => {
               console.log("[SW] Service Worker registered:", reg.scope);
+              
+              // Listen for service worker updates
+              reg.addEventListener("updatefound", () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener("statechange", () => {
+                  if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                    // New service worker available, prompt reload
+                    console.log("[SW] New service worker available, reloading...");
+                    window.location.reload();
+                  }
+                });
+              });
             })
             .catch((err) => {
               console.warn("[SW] Service Worker registration failed:", err);
             });
+          
+          // Listen for messages from service worker
+          navigator.serviceWorker.addEventListener("message", (event) => {
+            if (event.data && event.data.type === "SW_UPDATED") {
+              console.log("[SW] Service worker updated, reloading...");
+              window.location.reload();
+            }
+          });
         });
       }
 
