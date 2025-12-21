@@ -3,8 +3,9 @@
 
 [build]
   # Build web version using webpack
-  # Note: If package-lock.json is in Git LFS, ensure Git LFS is installed
-  command = "git lfs pull && npm ci && npm run build:web"
+  # Note: NODE_ENV is set here (not in environment) so devDependencies are installed
+  # If package-lock.json is in Git LFS, ensure Git LFS is installed
+  command = "git lfs pull && npm ci && NODE_ENV=production npm run build:web"
   publish = "dist"
 
 # Redirect API routes to Netlify Functions
@@ -26,7 +27,8 @@
 [build.environment]
   NODE_VERSION = "18"
   IS_ELECTRON = "false"
-  NODE_ENV = "production"
+  # Note: NODE_ENV is set in the build command, not here
+  # Setting it here causes npm ci to skip devDependencies (which includes webpack)
 
 # Headers for better caching and security
 [[headers]]
