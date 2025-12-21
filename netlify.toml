@@ -3,7 +3,8 @@
 
 [build]
   # Build web version using webpack
-  command = "npm run build:web"
+  # Note: If package-lock.json is in Git LFS, ensure Git LFS is installed
+  command = "git lfs pull && npm ci && npm run build:web"
   publish = "dist"
 
 # Redirect API routes to Netlify Functions
