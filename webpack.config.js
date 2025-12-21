@@ -7,7 +7,9 @@ const IS_ELECTRON = process.env.IS_ELECTRON === "true";
 
 module.exports = {
   mode: process.env.NODE_ENV || "production",
-  entry: "./js/main.js", // Ihr Haupt-JavaScript-File
+  // For web builds, we don't need to bundle since files are loaded via script tags
+  // Entry is only used for Electron builds
+  entry: IS_ELECTRON ? "./js/main.js" : "./js/main.js",
   target: IS_ELECTRON ? "electron-renderer" : "web",
   devtool:
     process.env.NODE_ENV === "development" ? "inline-source-map" : "source-map",
@@ -22,6 +24,11 @@ module.exports = {
     filename: "bundle.js",
     path: path.resolve(__dirname, "dist"),
     clean: true,
+  },
+  // Ignore Electron modules for web builds
+  externals: IS_ELECTRON ? {} : {
+    "electron": "commonjs electron",
+    "../electron-main/steam/steam-manager.js": "commonjs ../electron-main/steam/steam-manager.js",
   },
   resolve: {
     extensions: [".js", ".json"],
@@ -61,6 +68,26 @@ module.exports = {
         {
           from: path.resolve(__dirname, "data"),
           to: path.resolve(__dirname, "dist", "data"),
+        },
+        {
+          from: path.resolve(__dirname, "js"),
+          to: path.resolve(__dirname, "dist", "js"),
+        },
+        {
+          from: path.resolve(__dirname, "levels"),
+          to: path.resolve(__dirname, "dist", "levels"),
+        },
+        {
+          from: path.resolve(__dirname, "index.html"),
+          to: path.resolve(__dirname, "dist", "index.html"),
+        },
+        {
+          from: path.resolve(__dirname, "manifest.json"),
+          to: path.resolve(__dirname, "dist", "manifest.json"),
+        },
+        {
+          from: path.resolve(__dirname, "sw.js"),
+          to: path.resolve(__dirname, "dist", "sw.js"),
         },
       ],
     }),

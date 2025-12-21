@@ -2,25 +2,30 @@
 # This configuration enables static hosting of the game
 
 [build]
-  # No build step needed - we're serving static files directly
-  publish = "."
-  command = "echo 'No build step needed - serving static files'"
+  # Build web version using webpack
+  command = "npm run build:web"
+  publish = "dist"
 
-# Redirect all routes to index.html (useful for SPA routing if added later)
-# BUT: Exclude API routes from this redirect
+# Redirect API routes to Netlify Functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
+# IMPORTANT: Netlify serves files that exist BEFORE checking redirects
+# So static assets (js/, assets/, data/, levels/, etc.) will be served directly
+# This redirect only applies to paths that don't match existing files
+# This enables SPA routing while preserving static asset loading
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Environment variables (optional - can be set in Netlify dashboard)
+# Environment variables for web build
 [build.environment]
   NODE_VERSION = "18"
+  IS_ELECTRON = "false"
+  NODE_ENV = "production"
 
 # Headers for better caching and security
 [[headers]]

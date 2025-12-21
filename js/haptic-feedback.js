@@ -6,7 +6,7 @@ window.HapticFeedback = (() => {
 
   function checkSupport() {
     // Check if API exists without testing it (browsers require user interaction first)
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
       supported = true;
       // Don't test vibration here - browsers block it until user interaction
       // We'll test it lazily on first actual vibration call
@@ -19,7 +19,7 @@ window.HapticFeedback = (() => {
       return false;
     }
     // Check API availability
-    if (typeof navigator === 'undefined' || !navigator.vibrate) {
+    if (typeof navigator === "undefined" || !navigator.vibrate) {
       supported = false;
       return false;
     }
@@ -33,8 +33,8 @@ window.HapticFeedback = (() => {
     } catch (e) {
       // Silently handle "user interaction required" errors
       // This is expected until user interacts with the page
-      if (e.name !== 'NotAllowedError' && e.name !== 'SecurityError') {
-        console.warn('[HapticFeedback] Vibration failed:', e);
+      if (e.name !== "NotAllowedError" && e.name !== "SecurityError") {
+        console.warn("[HapticFeedback] Vibration failed:", e);
       }
       return false;
     }
@@ -44,9 +44,9 @@ window.HapticFeedback = (() => {
     init() {
       supported = checkSupport();
       if (supported) {
-        console.log('[HapticFeedback] Haptic feedback available');
+        console.log("[HapticFeedback] Haptic feedback available");
       } else {
-        console.log('[HapticFeedback] Haptic feedback not available');
+        console.log("[HapticFeedback] Haptic feedback not available");
       }
     },
 
@@ -88,4 +88,3 @@ window.HapticFeedback = (() => {
     },
   };
 })();
-
