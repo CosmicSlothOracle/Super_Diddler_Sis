@@ -55,7 +55,7 @@ window.TouchNavigation = (() => {
 
     const now = Date.now();
     // Reduced debounce time for better responsiveness on mobile
-    const debounceTime = isMobile ? 100 : TOUCH_DEBOUNCE_MS;
+    const debounceTime = isMobile ? 50 : TOUCH_DEBOUNCE_MS;
     if (now - lastTouchTime < debounceTime) {
       return; // Debounce
     }

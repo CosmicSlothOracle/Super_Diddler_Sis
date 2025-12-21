@@ -185,10 +185,16 @@ window.Renderer = (() => {
     // Use effective native dimensions if device aspect ratio is matched
     const nativeWidth = state.effectiveNativeWidth ?? GameState.CONSTANTS.NATIVE_WIDTH;
     const nativeHeight = state.effectiveNativeHeight ?? GameState.CONSTANTS.NATIVE_HEIGHT;
-    
-    const scaleX = state.viewport.width / nativeWidth;
-    const scaleY = state.viewport.height / nativeHeight;
-    
+
+    // Account for device pixel ratio (canvas is already scaled, so use actual canvas dimensions)
+    const dpr = state.devicePixelRatio || window.devicePixelRatio || 1;
+    // Canvas internal size already accounts for DPR, so use that for scaling
+    const canvasWidth = ctx.canvas.width;
+    const canvasHeight = ctx.canvas.height;
+
+    const scaleX = canvasWidth / nativeWidth;
+    const scaleY = canvasHeight / nativeHeight;
+
     // If matching device aspect, use uniform scaling to prevent distortion
     // Otherwise use different scales for letterboxing
     if (state.viewport.matchesDevice) {
@@ -234,8 +240,10 @@ window.Renderer = (() => {
     // NEW: Background layer for stage animations (between bg and characters)
     drawLayer(ctx, state.bgLayer);
 
-    // NEW: Render stage animations on bgLayer
-    renderStageAnimations(ctx, state);
+    // NEW: Render stage animations on bgLayer (only if quality setting allows)
+    if (!window.QualityManager || window.QualityManager.getSetting('stageAnimations')) {
+      renderStageAnimations(ctx, state);
+    }
 
     // Performance monitoring: Effects
     if (window.PerformanceMonitor?.isEnabled) {
@@ -369,9 +377,12 @@ window.Renderer = (() => {
       webglRenderer.renderDiscoBallOnly(ctx, state);
     }
 
-    // Schneefall aktivieren falls noch nicht geschehen
-    if (isWebGLInitialized && webglRenderer && webglRenderer.setSnowEnabled) {
+    // Schneefall aktivieren falls noch nicht geschehen (only if quality allows)
+    const allowSnow = !window.QualityManager || window.QualityManager.getSetting('snowEnabled');
+    if (allowSnow && isWebGLInitialized && webglRenderer && webglRenderer.setSnowEnabled) {
       webglRenderer.setSnowEnabled(true);
+    } else if (!allowSnow && webglRenderer && webglRenderer.setSnowEnabled) {
+      webglRenderer.setSnowEnabled(false);
     }
   }
 

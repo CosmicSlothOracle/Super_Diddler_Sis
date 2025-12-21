@@ -1,6 +1,8 @@
 // Service Worker for PWA - Cache-first strategy for static assets
 // IMPORTANT: Increment version when deploying new code to force cache refresh
 const CACHE_NAME = "beatfighter-v2-20250120";
+const MAX_CACHE_SIZE = 100 * 1024 * 1024; // 100MB max cache size
+const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 const CRITICAL_ASSETS = [
   "/",
   "/index.html",
@@ -99,23 +101,29 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for versioned files (JS/CSS with ?v= query) to ensure fresh updates
+  // Stale-while-revalidate for versioned files (JS/CSS with ?v= query)
   if (url.search && url.search.includes("v=")) {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, clone);
-            });
-          }
-          return response;
-        })
-        .catch(() => {
-          // Fallback to cache if network fails
-          return caches.match(event.request);
-        })
+      caches.match(event.request).then((cached) => {
+        // Return cached version immediately if available
+        const fetchPromise = fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, clone);
+              });
+            }
+            return response;
+          })
+          .catch(() => {
+            // Network failed, return cached if available
+            return cached || new Response('Network error', { status: 503 });
+          });
+
+        // Return cached immediately, update in background
+        return cached || fetchPromise;
+      })
     );
     return;
   }

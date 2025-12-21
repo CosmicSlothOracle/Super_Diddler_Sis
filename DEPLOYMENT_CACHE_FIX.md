@@ -89,3 +89,4 @@ const CACHE_NAME = "beatfighter-v3-20250125"; // New version
 - Network-first for versioned files ensures updates are always fresh
 - Old caches are automatically deleted on service worker activation
 
+

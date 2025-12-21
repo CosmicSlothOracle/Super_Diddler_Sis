@@ -1604,6 +1604,13 @@ window.AttackSystem = (() => {
    * @param {Object} descriptor - Attack descriptor
    * @param {Object} state - Game state
    */
+  function triggerHitHaptic() {
+    // Haptic feedback on hit
+    if (window.HapticFeedback && window.HapticFeedback.isSupported()) {
+      window.HapticFeedback.hitImpact();
+    }
+  }
+
   function applyDamageWithDescriptor(
     attacker,
     target,
@@ -1613,6 +1620,9 @@ window.AttackSystem = (() => {
   ) {
     // CRITICAL: Do not apply damage if target is invincible (e.g., during dodge)
     if (target.invincible) return;
+
+    // Haptic feedback on hit
+    triggerHitHaptic();
 
     // Calculate final damage and knockback
     let finalDamage = calculateFinalDamage(attacker, descriptor);
