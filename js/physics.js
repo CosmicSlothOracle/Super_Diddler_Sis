@@ -38,6 +38,13 @@ const debugLog = (...args) => {
 };
 
 window.Physics = (() => {
+  // Initialize MovementSystem with required dependencies
+  MovementSystem.init({
+    canUseAbility: null, // Will be set after function definitions
+    startCooldown: null, // Will be set after function definitions
+    setAnim: null, // Will be set after function definitions
+  });
+
   function update(dt, state, canvas) {
     if (!state.players) return;
 

@@ -307,11 +307,6 @@ window.MobileControls = (() => {
     buttons[buttonId].down = !prevButtonState[buttonId];
     prevButtonState[buttonId] = true;
 
-    // Haptic feedback on button press
-    if (window.HapticFeedback && window.HapticFeedback.isSupported()) {
-      window.HapticFeedback.buttonPress();
-    }
-
     const btn = buttonContainer.querySelector(`.mobile-btn-${buttonId}`);
     if (btn) {
       btn.style.background = "rgba(255, 255, 255, 0.5)";

@@ -1,11 +1,5 @@
 window.ParticleManager = (() => {
-  // Dynamic max particles based on quality preset
-  function getMaxParticles() {
-    if (window.QualityManager) {
-      return window.QualityManager.getSetting('particleMaxCount');
-    }
-    return 200; // Fallback default
-  }
+  const MAX_PARTICLES = 200; // Maximum number of particles to manage
   const SMOKE_TRAIL_THRESHOLD = 550; // Min velocity to trigger smoke (px/s)
 
   // Reusable vector for calculations
@@ -158,8 +152,7 @@ window.ParticleManager = (() => {
     constructor() {
       this.pool = [];
       this.activeParticles = [];
-      const maxParticles = getMaxParticles();
-      for (let i = 0; i < maxParticles; i++) {
+      for (let i = 0; i < MAX_PARTICLES; i++) {
         this.pool.push(new Particle());
       }
     }
@@ -202,49 +195,14 @@ window.ParticleManager = (() => {
       return null;
     }
 
-    update(dt, camera = null) {
-      const maxParticles = getMaxParticles();
-
-      // Cull particles outside viewport if camera is provided
-      const viewportMargin = 200; // Margin in pixels
-      let culledCount = 0;
-
+    update(dt) {
       for (let i = this.activeParticles.length - 1; i >= 0; i--) {
         const p = this.activeParticles[i];
         p.update(dt);
-
-        // Viewport culling: remove particles far outside viewport
-        if (camera && p.active) {
-          const dx = p.pos.x - camera.x;
-          const dy = p.pos.y - camera.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const viewportRadius = Math.max(
-            (GameState.CONSTANTS.NATIVE_WIDTH / camera.zoom) / 2,
-            (GameState.CONSTANTS.NATIVE_HEIGHT / camera.zoom) / 2
-          ) + viewportMargin;
-
-          if (distance > viewportRadius) {
-            p.active = false;
-            culledCount++;
-          }
-        }
-
         if (!p.active) {
           // Move dead particle back to the pool
           this.pool.push(p);
           this.activeParticles.splice(i, 1);
-        }
-      }
-
-      // Limit active particles based on quality setting
-      if (this.activeParticles.length > maxParticles) {
-        const excess = this.activeParticles.length - maxParticles;
-        for (let i = 0; i < excess; i++) {
-          const p = this.activeParticles.shift();
-          if (p) {
-            p.active = false;
-            this.pool.push(p);
-          }
         }
       }
     }

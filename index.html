@@ -15,17 +15,13 @@
     />
     <meta name="apple-mobile-web-app-title" content="Beat Fighter" />
     <title>Beat Fighter</title>
-    <link rel="manifest" href="manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
-    <!-- Preload critical assets -->
-    <link rel="preload" href="assets/ui/atlas_ui.png" as="image" fetchpriority="high" crossorigin="anonymous" />
-    <link rel="preload" href="data/characters.json" as="fetch" fetchpriority="high" crossorigin="anonymous" />
-    <link rel="preload" href="data/stages.json" as="fetch" fetchpriority="high" crossorigin="anonymous" />
     <style>
       html,
       body {
@@ -68,47 +64,36 @@
       <canvas id="game"></canvas>
     </div>
     <div id="overlay">Loading…</div>
-    <!-- Critical scripts (load immediately) -->
-    <script src="js/device-capability-detector.js?v=20250110_1"></script>
-    <script src="js/quality-manager.js?v=20250110_1"></script>
-    <script src="js/frame-budget-manager.js?v=20250110_1"></script>
-    <script src="js/asset-priority-manager.js?v=20250110_1"></script>
-    <script src="js/progressive-asset-loader.js?v=20250110_1"></script>
-    <script src="js/memory-manager.js?v=20250110_1"></script>
-    <script src="js/battery-optimizer.js?v=20250110_1"></script>
-    <script src="js/haptic-feedback.js?v=20250110_1"></script>
+    <script src="js/analytics-config.js?v=20250110_1"></script>
+    <script src="js/analytics-client.js?v=20250110_1"></script>
+    <script src="js/mobile-controls.js?v=20250110_1"></script>
+    <script src="js/touch-navigation.js?v=20250110_1"></script>
+    <link rel="stylesheet" href="assets/ui/mobile-controls.css?v=20250110_1" />
     <script src="js/game-state.js?v=20250110_1"></script>
+    <script src="js/ui-components.js?v=20250110_1"></script>
+    <script src="js/webgl-renderer.js?v=20250110_1"></script>
+    <script src="js/renderer.js?v=20250110_1"></script>
+    <script src="js/game-assets.js?v=20250110_1"></script>
+    <script src="js/audio-device-manager.js?v=20250110_1"></script>
+    <script src="js/metronome.js?v=20250110_1"></script>
     <script src="js/input-binding-catalog.js?v=20250110_1"></script>
     <script src="js/input-handler.js?v=20250110_1"></script>
-    <script src="js/movement-system.js?v=20250110_1"></script>
+    <script src="js/npc-controller.js?v=20250110_1"></script>
+    <script src="js/particle-system.js?v=20250110_1"></script>
+    <script src="js/character-catalog.js?v=20250110_1"></script>
     <script src="js/attack-catalog.js?v=20250110_1"></script>
+    <script src="js/movement-system.js?v=20250110_1"></script>
     <script src="js/attack-system.js?v=20250110_1"></script>
+    <script src="js/dance-catalog.js?v=20250110_1"></script>
+    <script src="js/ultimeter-manager.js?v=20250110_1"></script>
+    <script src="js/dance-spot-manager.js?v=20250110_1"></script>
+    <script src="js/tutorial-messages.js?v=20250110_1"></script>
+    <script src="js/tutorial-modal.js?v=20250110_1"></script>
+    <script src="js/tutorial-system.js?v=20250110_1"></script>
     <script src="js/physics.js?v=20250110_1"></script>
     <script src="js/audio-system.js?v=20250110_1"></script>
-    <script src="js/metronome.js?v=20250110_1"></script>
-    <script src="js/game-assets.js?v=20250110_1"></script>
-    <script src="js/ui-components.js?v=20250110_1"></script>
-    <script src="js/renderer.js?v=20250110_1"></script>
+    <script src="js/performance-monitor.js?v=20250110_1"></script>
     <script src="js/main.js?v=20250110_1"></script>
-
-    <!-- High priority scripts (load async but early) -->
-    <script src="js/webgl-renderer.js?v=20250110_1" async></script>
-    <script src="js/audio-device-manager.js?v=20250110_1" async></script>
-    <script src="js/npc-controller.js?v=20250110_1" async></script>
-    <script src="js/particle-system.js?v=20250110_1" async></script>
-    <script src="js/character-catalog.js?v=20250110_1" async></script>
-    <script src="js/dance-catalog.js?v=20250110_1" async></script>
-    <script src="js/ultimeter-manager.js?v=20250110_1" async></script>
-    <script src="js/dance-spot-manager.js?v=20250110_1" async></script>
-    <script src="js/mobile-controls.js?v=20250110_1" async></script>
-    <script src="js/touch-navigation.js?v=20250110_1" async></script>
-    <link rel="stylesheet" href="assets/ui/mobile-controls.css?v=20250110_1" />
-
-    <!-- Non-critical scripts (load async, on-demand) -->
-    <script src="js/analytics-config.js?v=20250110_1" async defer></script>
-    <script src="js/analytics-client.js?v=20250110_1" async defer></script>
-    <script src="js/performance-monitor.js?v=20250110_1" async defer></script>
-    <!-- Tutorial scripts loaded dynamically when needed -->
     <script>
       // Register Service Worker for PWA
       if ("serviceWorker" in navigator) {

@@ -206,90 +206,19 @@ window.GameAssets = (() => {
    * Returns Image object that can be used with Canvas2D.
    * Canvas2D can draw ImageBitmap directly, but we convert to Image for compatibility.
    */
-  async function loadImageFormat(src, format) {
-    // Replace extension with requested format
-    const basePath = src.replace(/\.(png|jpg|jpeg|webp|avif)$/i, '');
-    const formatPath = `${basePath}.${format}`;
-
+  async function loadImage(src) {
     try {
       let blob = null;
 
       if (shouldUseFileSystem()) {
-        const buffer = await readBinaryFile(formatPath);
-        if (!buffer) throw new Error(`Failed to load ${formatPath}`);
-        blob = new Blob([buffer], { type: inferMimeType(formatPath) });
+        const buffer = await readBinaryFile(src);
+        if (!buffer) throw new Error(`Failed to load ${src}`);
+        blob = new Blob([buffer], { type: inferMimeType(src) });
       } else {
-        const res = await fetch(formatPath);
-        if (!res.ok) throw new Error(`Failed to fetch ${formatPath}: ${res.status}`);
+        const res = await fetch(src);
+        if (!res.ok) throw new Error(`Failed to fetch ${src}: ${res.status}`);
         blob = await res.blob();
       }
-
-      return blob;
-    } catch (error) {
-      throw error; // Re-throw to allow fallback chain
-    }
-  }
-
-  async function loadImage(src) {
-    // Try modern formats first (AVIF > WebP > PNG)
-    const formats = ['avif', 'webp', 'png'];
-    let blob = null;
-    let usedFormat = 'png';
-
-    // Check browser support (simplified - fallback chain handles unsupported formats)
-    // Note: Format detection via toDataURL is unreliable, so we rely on fetch errors for detection
-    const supportsAVIF = true; // Try AVIF first, fallback on error
-    const supportsWebP = true; // Try WebP second, fallback on error
-
-    // Filter formats based on browser support
-    const supportedFormats = formats.filter(format => {
-      if (format === 'avif') return supportsAVIF;
-      if (format === 'webp') return supportsWebP;
-      return true; // PNG always supported
-    });
-
-    // Try formats in priority order
-    for (const format of supportedFormats) {
-      try {
-        blob = await loadImageFormat(src, format);
-        usedFormat = format;
-        break; // Success, exit loop
-      } catch (error) {
-        // Try next format
-        continue;
-      }
-    }
-
-    // Fallback to original src if all formats failed
-    if (!blob) {
-      try {
-        if (shouldUseFileSystem()) {
-          const buffer = await readBinaryFile(src);
-          if (!buffer) throw new Error(`Failed to load ${src}`);
-          blob = new Blob([buffer], { type: inferMimeType(src) });
-        } else {
-          const res = await fetch(src);
-          if (!res.ok) throw new Error(`Failed to fetch ${src}: ${res.status}`);
-          blob = await res.blob();
-        }
-      } catch (error) {
-        console.error(`Failed to load image in any format: ${src}`, error);
-        throw error;
-      }
-    }
-
-    // Validate blob is actually an image
-    if (!blob || blob.size === 0) {
-      throw new Error(`Invalid image blob for ${src} (size: ${blob?.size || 0})`);
-    }
-
-    // Check MIME type
-    const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/avif', 'image/gif'];
-    if (blob.type && !validImageTypes.includes(blob.type)) {
-      console.warn(`Unexpected MIME type for ${src}: ${blob.type}, attempting to load anyway`);
-    }
-
-    try {
 
       let bitmap = null;
       if (typeof createImageBitmap !== "undefined") {
@@ -319,9 +248,7 @@ window.GameAssets = (() => {
         } else {
           await new Promise((resolve, reject) => {
             img.onload = () => resolve();
-            img.onerror = (event) => {
-              reject(new Error(`Image failed to load: ${src} (${event?.type || 'error'})`));
-            };
+            img.onerror = reject;
           });
         }
       } catch (decodeError) {
@@ -329,32 +256,13 @@ window.GameAssets = (() => {
           `Image.decode failed for ${src}, using onload fallback`,
           decodeError
         );
-        // Try onload fallback with timeout
         await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error(`Image load timeout for ${src} (10s)`));
-          }, 10000); // 10 second timeout
-
-          img.onload = () => {
-            clearTimeout(timeout);
-            resolve();
-          };
-          img.onerror = (event) => {
-            clearTimeout(timeout);
-            const errorMsg = `Image failed to load: ${src}`;
-            const errorDetails = event?.type ? ` (event: ${event.type})` : '';
-            const blobInfo = blob ? ` (blob size: ${blob.size}, type: ${blob.type || 'unknown'})` : ' (no blob)';
-            reject(new Error(`${errorMsg}${errorDetails}${blobInfo}`));
-          };
+          img.onload = () => resolve();
+          img.onerror = reject;
         });
       }
 
       URL.revokeObjectURL(objectUrl);
-
-      // Verify image actually loaded
-      if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
-        throw new Error(`Image failed to decode: ${src} (invalid dimensions)`);
-      }
 
       if (bitmap) {
         img._bitmap = bitmap;
@@ -365,15 +273,8 @@ window.GameAssets = (() => {
 
       return img;
     } catch (error) {
-      const errorDetails = {
-        message: error?.message || String(error),
-        name: error?.name,
-        blobSize: blob?.size,
-        blobType: blob?.type,
-        src: src
-      };
-      console.error(`Failed to load image ${src}:`, errorDetails, error);
-      throw new Error(`Failed to load image ${src}: ${error?.message || error} (blob: ${blob?.size || 0} bytes, type: ${blob?.type || 'unknown'})`);
+      console.error(`Failed to load image ${src}:`, error);
+      throw error;
     }
   }
 
@@ -523,27 +424,8 @@ window.GameAssets = (() => {
       const atlasJsonPath = `${config.atlas_path}.json${cacheBuster}`;
       const atlasData = await fetchJson(atlasJsonPath);
 
-      const atlasImagePath = `${config.atlas_path}.png${cacheBuster}`;
-      let atlasImage;
-      try {
-        atlasImage = await loadImage(atlasImagePath);
-      } catch (error) {
-        console.error(`Failed to load character atlas for ${charName}:`, error);
-        // If it's a 404 (HTML response), provide a more helpful error
-        if (error?.message?.includes('text/html') || error?.blobType === 'text/html') {
-          throw new Error(
-            `Character atlas image not found: ${atlasImagePath}\n` +
-            `This usually means the file wasn't deployed to the server.\n` +
-            `Please ensure ${config.atlas_path}.png exists and is committed to git.`
-          );
-        }
-        throw error;
-      }
-
-      // Track asset for memory management
-      if (window.MemoryManager) {
-        window.MemoryManager.trackAsset(atlasImagePath, atlasImage);
-      }
+      const atlasImagePath = `${config.atlas_path}.png`;
+      const atlasImage = await loadImage(atlasImagePath);
 
       const animations = atlasData.animations || {};
 
@@ -1061,20 +943,8 @@ window.GameAssets = (() => {
     const uiAtlasPath = `assets/ui/atlas_ui.json${cacheBuster}`;
     const uiAtlasData = await fetchJson(uiAtlasPath);
 
-    // Load UI atlas image with error handling
-    const uiAtlasImagePath = `assets/ui/atlas_ui.png${cacheBuster}`;
-    let uiAtlasImage = null;
-    try {
-      uiAtlasImage = await loadImage(uiAtlasImagePath);
-      console.log("✅ UI atlas image loaded");
-    } catch (error) {
-      console.error(`❌ Failed to load UI atlas image (${uiAtlasImagePath}):`, error);
-      console.warn("⚠️ UI animations may not work correctly without atlas image");
-      // Create a placeholder image to prevent null reference errors
-      uiAtlasImage = new Image();
-      uiAtlasImage.width = 1;
-      uiAtlasImage.height = 1;
-    }
+    const uiAtlasImagePath = "assets/ui/atlas_ui.png";
+    const uiAtlasImage = await loadImage(uiAtlasImagePath);
 
     state.uiAtlas = uiAtlasData;
     state.uiAtlasImage = uiAtlasImage;
@@ -1203,62 +1073,6 @@ window.GameAssets = (() => {
     };
   }
 
-  function unloadAsset(path) {
-    // Remove from state if it exists
-    // This is a basic implementation - may need to be extended based on asset type
-    if (window.MemoryManager) {
-      window.MemoryManager.untrackAsset(path);
-    }
-  }
-
-  function unloadCharacterAssets(charName) {
-    const C = GameState.CONSTANTS;
-    const paths = [
-      `${C.CHAR_DIR}/${charName}/config.json`,
-      `${C.CHAR_DIR}/${charName}/atlas.json`,
-      `${C.CHAR_DIR}/${charName}/atlas.png`,
-    ];
-
-    paths.forEach(path => {
-      unloadAsset(path);
-    });
-
-    // Also remove from characterConfigs if state is available
-    if (typeof window !== 'undefined' && window.state && window.state.characterConfigs) {
-      delete window.state.characterConfigs[charName];
-    }
-  }
-
-  function unloadStageAssets(stagePath) {
-    const C = GameState.CONSTANTS;
-    const paths = [
-      `${stagePath}/bg.png`,
-      `${stagePath}/mid.png`,
-      `${stagePath}/fg.png`,
-      `${stagePath}/bg_layer.png`,
-      `${stagePath}/${C.HEATMAP_DIR}/ground.png`,
-      `${stagePath}/${C.HEATMAP_DIR}/semisolid.png`,
-      `${stagePath}/${C.HEATMAP_DIR}/kill.png`,
-      `${stagePath}/${C.HEATMAP_DIR}/spawn.png`,
-    ];
-
-    paths.forEach(path => {
-      unloadAsset(path);
-    });
-
-    // Clear stage-related state
-    if (typeof window !== 'undefined' && window.state) {
-      window.state.bg = null;
-      window.state.mid = null;
-      window.state.fg = null;
-      window.state.bgLayer = null;
-      window.state.ground = null;
-      window.state.semisolid = null;
-      window.state.kill = null;
-      window.state.spawn = null;
-    }
-  }
-
   const api = {
     loadImage,
     loadCharacterAssets,
@@ -1269,9 +1083,6 @@ window.GameAssets = (() => {
     parseSpawns,
     warmupImage,
     warmupSpritesheets,
-    unloadAsset,
-    unloadCharacterAssets,
-    unloadStageAssets,
   };
   try {
     if (typeof window !== "undefined" && window) {

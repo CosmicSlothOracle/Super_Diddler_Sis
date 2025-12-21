@@ -28,34 +28,15 @@
 
   state.gameMode = "LOADING"; // NEW: Game mode state machine
 
-  // NEW: Device capability detection and quality management
-  let deviceCapabilities = null;
-  if (typeof window !== "undefined" && window.DeviceCapabilityDetector) {
-    deviceCapabilities = window.DeviceCapabilityDetector.init();
-    state.deviceCapabilities = deviceCapabilities;
-  }
-
-  // Initialize Quality Manager
-  if (typeof window !== "undefined" && window.QualityManager) {
-    const deviceTier = deviceCapabilities?.tier || 'medium';
-    state.qualityPreset = window.QualityManager.init(deviceTier);
-    // Legacy performanceMode flag (true if quality < 'high')
-    state.performanceMode = state.qualityPreset === 'low' || state.qualityPreset === 'medium';
+  // NEW: Performance mode for mobile devices
+  state.performanceMode = false;
+  if (typeof window !== "undefined" && window.matchMedia) {
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const isLowEnd =
+      navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4;
+    state.performanceMode = isCoarsePointer || isLowEnd;
     if (state.performanceMode) {
-      console.log(`[Performance] Quality preset: ${state.qualityPreset} (performance mode enabled)`);
-    }
-  } else {
-    // Fallback to old detection if QualityManager not available
-    state.performanceMode = false;
-    if (typeof window !== "undefined" && window.matchMedia) {
-      const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
-      const isLowEnd =
-        navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4;
-      state.performanceMode = isCoarsePointer || isLowEnd;
-      state.qualityPreset = state.performanceMode ? 'low' : 'medium';
-      if (state.performanceMode) {
-        console.log("[Performance] Mobile/Performance mode enabled (fallback)");
-      }
+      console.log("[Performance] Mobile/Performance mode enabled");
     }
   }
 
@@ -64,25 +45,6 @@
     enabled: false,
     visualPulse: 0, // 0-1 value for visual feedback
   };
-
-  // Dynamic script loader for on-demand loading
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      // Check if script is already loaded
-      const existingScript = document.querySelector(`script[src="${src}"]`);
-      if (existingScript) {
-        resolve();
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = src;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-      document.head.appendChild(script);
-    });
-  }
 
   // Resolve global singletons (defensive when scripts fail to load)
   const Physics = window.Physics;
@@ -681,11 +643,6 @@
   }
 
   function loop(ts) {
-    // Start frame budget tracking
-    if (window.FrameBudgetManager) {
-      window.FrameBudgetManager.startFrame();
-    }
-
     // Start performance monitoring for this frame
     if (window.PerformanceMonitor?.isEnabled) {
       window.PerformanceMonitor.startFrame();
@@ -809,9 +766,7 @@
         // The core game loop
         // Note: WebGL is now initialized early in startGame(), so we skip init here
         // Only initialize if somehow it wasn't done during warmup
-        const allowWebGL = !window.QualityManager || window.QualityManager.getSetting('webglEffects');
         if (
-          allowWebGL &&
           typeof WebGLRenderer !== "undefined" &&
           WebGLRenderer.init &&
           state.webglInitialized === undefined
@@ -822,18 +777,13 @@
           const initResult = WebGLRenderer.init(canvas);
           if (initResult) {
             state.webglInitialized = true;
-            const allowSnow = !window.QualityManager || window.QualityManager.getSetting('snowEnabled');
-            if (allowSnow) {
-              WebGLRenderer.setSnowEnabled(true);
-            }
+            WebGLRenderer.setSnowEnabled(true);
             if (WebGLRenderer.warmupCollisionEffects) {
               WebGLRenderer.warmupCollisionEffects();
             }
           } else {
             state.webglInitialized = false;
           }
-        } else if (!allowWebGL && state.webglInitialized === undefined) {
-          state.webglInitialized = false;
         }
 
         if (window.PerformanceMonitor?.isEnabled) {
@@ -914,7 +864,7 @@
             }
             const particleMgr = window.ParticleManager;
             if (particleMgr && typeof particleMgr.update === "function") {
-              particleMgr.update(scaledDt, state.camera);
+              particleMgr.update(scaledDt);
             }
             // DanceSpotManager affects UI visibility/proximity; update it too.
             if (
@@ -947,19 +897,15 @@
           particleMgr &&
           typeof particleMgr.update === "function"
         ) {
-          // Check frame budget before updating particles
-          const shouldSkipParticles = window.FrameBudgetManager?.shouldSkipUpdate('high') || false;
-          if (!shouldSkipParticles) {
-            // In performance mode, update particles less frequently (every other frame)
-            if (state.performanceMode) {
-              state._particleUpdateCounter =
-                (state._particleUpdateCounter || 0) + 1;
-              if (state._particleUpdateCounter % 2 === 0) {
-                particleMgr.update(dt, state.camera);
-              }
-            } else {
-              particleMgr.update(dt, state.camera);
+          // In performance mode, update particles less frequently (every other frame)
+          if (state.performanceMode) {
+            state._particleUpdateCounter =
+              (state._particleUpdateCounter || 0) + 1;
+            if (state._particleUpdateCounter % 2 === 0) {
+              particleMgr.update(dt);
             }
+          } else {
+            particleMgr.update(dt);
           }
         }
 
@@ -992,11 +938,6 @@
           } else if (state.tutorial.part === 3) {
             window.TutorialSystem.updatePartTwoTip(dt, state); // Reuse tip system for part 3
           }
-        }
-
-        // Memory management check
-        if (window.MemoryManager) {
-          window.MemoryManager.checkAndCleanup(state);
         }
 
         // Performance monitoring: Rendering
@@ -1091,23 +1032,7 @@
       window.PerformanceMonitor.endFrame();
     }
 
-    // End frame budget tracking
-    if (window.FrameBudgetManager) {
-      window.FrameBudgetManager.endFrame();
-    }
-
-    // Handle battery optimization throttling
-    let nextFrameDelay = 0;
-    if (window.BatteryOptimizer && window.BatteryOptimizer.shouldThrottle()) {
-      const targetFPS = window.BatteryOptimizer.getTargetFPS();
-      nextFrameDelay = 1000 / targetFPS; // Delay in ms
-    }
-
-    if (nextFrameDelay > 0) {
-      setTimeout(() => requestAnimationFrame(loop), nextFrameDelay);
-    } else {
-      requestAnimationFrame(loop);
-    }
+    requestAnimationFrame(loop);
   }
 
   function updateGameOverlay(state) {
@@ -1318,20 +1243,13 @@
       state.effectiveNativeHeight = C.NATIVE_HEIGHT;
     }
 
-    // Account for device pixel ratio for high-DPI displays
-    const dpr = window.devicePixelRatio || 1;
+    // Canvas für WebGL vorbereiten
+    canvas.width = newWidth;
+    canvas.height = newHeight;
 
-    // Canvas für WebGL vorbereiten (internal resolution with DPR)
-    canvas.width = newWidth * dpr;
-    canvas.height = newHeight * dpr;
-
-    // Set CSS dimensions to match display size (without DPR)
+    // Set CSS dimensions to match internal resolution
     canvas.style.width = newWidth + "px";
     canvas.style.height = newHeight + "px";
-
-    // Note: Context scaling is handled in renderer.js to maintain compatibility
-    // Store DPR in state for renderer to use
-    state.devicePixelRatio = dpr;
 
     // WebGL Canvas Attribute setzen
     canvas.style.imageRendering = "pixelated";
@@ -2253,18 +2171,12 @@
 
       // Performance: Initialize WebGL early (before first render frame)
       // This prevents WebGL init stutter on first frame
-      // Only initialize if quality setting allows WebGL effects
-      const allowWebGL = !window.QualityManager || window.QualityManager.getSetting('webglEffects');
-      if (allowWebGL && typeof WebGLRenderer !== "undefined" && WebGLRenderer.init) {
+      if (typeof WebGLRenderer !== "undefined" && WebGLRenderer.init) {
         console.log("🎨 Initializing WebGL early (before first render)...");
         const webglInitResult = WebGLRenderer.init(canvas);
         if (webglInitResult) {
           state.webglInitialized = true;
-          // Only enable snow if quality setting allows
-          const allowSnow = !window.QualityManager || window.QualityManager.getSetting('snowEnabled');
-          if (allowSnow) {
-            WebGLRenderer.setSnowEnabled(true);
-          }
+          WebGLRenderer.setSnowEnabled(true);
           if (WebGLRenderer.warmupCollisionEffects) {
             WebGLRenderer.warmupCollisionEffects();
           }
@@ -2273,9 +2185,6 @@
           state.webglInitialized = false;
           console.warn("⚠️ WebGL initialization failed");
         }
-      } else if (!allowWebGL) {
-        state.webglInitialized = false;
-        console.log("[Performance] WebGL disabled by quality settings");
       }
 
       // Performance: Warm up Canvas2D context with a dummy render
@@ -2432,19 +2341,6 @@
       // NEW: Initialize Tutorial Mode if tutorial stage
       if (stagePath.includes("pvp_stage_tutorial_scaled")) {
         console.log("[Tutorial] Initializing tutorial mode...");
-
-        // Load tutorial scripts dynamically if not already loaded
-        if (!window.TutorialSystem) {
-          try {
-            await loadScript('js/tutorial-messages.js?v=20250110_1');
-            await loadScript('js/tutorial-modal.js?v=20250110_1');
-            await loadScript('js/tutorial-system.js?v=20250110_1');
-            console.log("[Tutorial] Tutorial scripts loaded dynamically");
-          } catch (error) {
-            console.warn("[Tutorial] Failed to load tutorial scripts:", error);
-          }
-        }
-
         state.tutorial.active = true;
         state.tutorial.part = 1;
         state.tutorial.perfectBeatCount = 0;
@@ -3427,21 +3323,6 @@
     overlay.textContent = "Initializing...";
     try {
       // Initialize systems
-      // Initialize Memory Manager
-      if (window.MemoryManager) {
-        window.MemoryManager.init();
-      }
-
-      // Initialize Battery Optimizer
-      if (window.BatteryOptimizer) {
-        window.BatteryOptimizer.init();
-      }
-
-      // Initialize Haptic Feedback
-      if (window.HapticFeedback) {
-        window.HapticFeedback.init();
-      }
-
       // Initialize Audio Device Manager first (for optimized AudioContext)
       if (window.AudioDeviceManager) {
         window.AudioDeviceManager.init();
@@ -3529,15 +3410,13 @@
       requestAnimationFrame(loop);
     } catch (err) {
       console.error(err);
-      const errorMessage = err?.message || err?.toString() || "Unknown error";
-      overlay.textContent = "Error: " + errorMessage;
+      overlay.textContent = "Error: " + err.message;
     }
   }
 
   main().catch((err) => {
     console.error(err);
-    const errorMessage = err?.message || err?.toString() || "Unknown error";
-    overlay.textContent = "Error: " + errorMessage;
+    overlay.textContent = "Error: " + err.message;
   });
 
   // Steam Integration (optional - nur in Electron)
