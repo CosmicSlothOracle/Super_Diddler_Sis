@@ -2,17 +2,19 @@ const path = require("path");
 const webpack = require("webpack");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
+// Read environment variables with safe defaults
 const WITH_STEAM = process.env.WITH_STEAM === "true";
-const IS_ELECTRON = process.env.IS_ELECTRON === "true";
+const IS_ELECTRON = process.env.IS_ELECTRON === "true" || process.env.IS_ELECTRON === true;
+const NODE_ENV = process.env.NODE_ENV || "production";
 
 module.exports = {
-  mode: process.env.NODE_ENV || "production",
+  mode: NODE_ENV,
   // For web builds, we don't need to bundle since files are loaded via script tags
   // Entry is only used for Electron builds
   entry: IS_ELECTRON ? "./js/main.js" : "./js/main.js",
   target: IS_ELECTRON ? "electron-renderer" : "web",
   devtool:
-    process.env.NODE_ENV === "development" ? "inline-source-map" : "source-map",
+    NODE_ENV === "development" ? "inline-source-map" : "source-map",
   devServer: {
     static: "./",
     port: 8080,
@@ -52,7 +54,7 @@ module.exports = {
     ],
   },
   optimization: {
-    minimize: process.env.NODE_ENV !== "development", // Production: Minifizierung aktiv
+    minimize: NODE_ENV !== "development", // Production: Minifizierung aktiv
   },
   plugins: [
     new webpack.DefinePlugin({
