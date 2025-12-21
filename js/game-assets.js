@@ -1008,8 +1008,20 @@ window.GameAssets = (() => {
     const uiAtlasPath = `assets/ui/atlas_ui.json${cacheBuster}`;
     const uiAtlasData = await fetchJson(uiAtlasPath);
 
-    const uiAtlasImagePath = "assets/ui/atlas_ui.png";
-    const uiAtlasImage = await loadImage(uiAtlasImagePath);
+    // Load UI atlas image with error handling
+    const uiAtlasImagePath = `assets/ui/atlas_ui.png${cacheBuster}`;
+    let uiAtlasImage = null;
+    try {
+      uiAtlasImage = await loadImage(uiAtlasImagePath);
+      console.log("✅ UI atlas image loaded");
+    } catch (error) {
+      console.error(`❌ Failed to load UI atlas image (${uiAtlasImagePath}):`, error);
+      console.warn("⚠️ UI animations may not work correctly without atlas image");
+      // Create a placeholder image to prevent null reference errors
+      uiAtlasImage = new Image();
+      uiAtlasImage.width = 1;
+      uiAtlasImage.height = 1;
+    }
 
     state.uiAtlas = uiAtlasData;
     state.uiAtlasImage = uiAtlasImage;
