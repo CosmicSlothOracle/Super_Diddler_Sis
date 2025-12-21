@@ -278,6 +278,17 @@ window.GameAssets = (() => {
       }
     }
 
+    // Validate blob is actually an image
+    if (!blob || blob.size === 0) {
+      throw new Error(`Invalid image blob for ${src} (size: ${blob?.size || 0})`);
+    }
+
+    // Check MIME type
+    const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/avif', 'image/gif'];
+    if (blob.type && !validImageTypes.includes(blob.type)) {
+      console.warn(`Unexpected MIME type for ${src}: ${blob.type}, attempting to load anyway`);
+    }
+
     try {
 
       let bitmap = null;
@@ -308,7 +319,9 @@ window.GameAssets = (() => {
         } else {
           await new Promise((resolve, reject) => {
             img.onload = () => resolve();
-            img.onerror = reject;
+            img.onerror = (event) => {
+              reject(new Error(`Image failed to load: ${src} (${event?.type || 'error'})`));
+            };
           });
         }
       } catch (decodeError) {
@@ -316,13 +329,29 @@ window.GameAssets = (() => {
           `Image.decode failed for ${src}, using onload fallback`,
           decodeError
         );
+        // Try onload fallback with timeout
         await new Promise((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = reject;
+          const timeout = setTimeout(() => {
+            reject(new Error(`Image load timeout for ${src}`));
+          }, 10000); // 10 second timeout
+
+          img.onload = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          img.onerror = (event) => {
+            clearTimeout(timeout);
+            reject(new Error(`Image failed to load: ${src} (${event?.type || 'error'})`));
+          };
         });
       }
 
       URL.revokeObjectURL(objectUrl);
+
+      // Verify image actually loaded
+      if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
+        throw new Error(`Image failed to decode: ${src} (invalid dimensions)`);
+      }
 
       if (bitmap) {
         img._bitmap = bitmap;

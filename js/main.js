@@ -3529,13 +3529,15 @@
       requestAnimationFrame(loop);
     } catch (err) {
       console.error(err);
-      overlay.textContent = "Error: " + err.message;
+      const errorMessage = err?.message || err?.toString() || "Unknown error";
+      overlay.textContent = "Error: " + errorMessage;
     }
   }
 
   main().catch((err) => {
     console.error(err);
-    overlay.textContent = "Error: " + err.message;
+    const errorMessage = err?.message || err?.toString() || "Unknown error";
+    overlay.textContent = "Error: " + errorMessage;
   });
 
   // Steam Integration (optional - nur in Electron)
