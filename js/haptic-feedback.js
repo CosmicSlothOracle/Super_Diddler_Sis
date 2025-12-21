@@ -5,27 +5,37 @@ window.HapticFeedback = (() => {
   let supported = false;
 
   function checkSupport() {
+    // Check if API exists without testing it (browsers require user interaction first)
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       supported = true;
-      // Test vibration (very short pulse)
-      try {
-        navigator.vibrate(1);
-      } catch (e) {
-        supported = false;
-      }
+      // Don't test vibration here - browsers block it until user interaction
+      // We'll test it lazily on first actual vibration call
     }
     return supported;
   }
 
   function vibrate(pattern) {
-    if (!enabled || !supported) {
+    if (!enabled) {
       return false;
+    }
+    // Check API availability
+    if (typeof navigator === 'undefined' || !navigator.vibrate) {
+      supported = false;
+      return false;
+    }
+    // Mark as supported if API exists (we'll test it on first use)
+    if (!supported) {
+      supported = true;
     }
     try {
       navigator.vibrate(pattern);
       return true;
     } catch (e) {
-      console.warn('[HapticFeedback] Vibration failed:', e);
+      // Silently handle "user interaction required" errors
+      // This is expected until user interacts with the page
+      if (e.name !== 'NotAllowedError' && e.name !== 'SecurityError') {
+        console.warn('[HapticFeedback] Vibration failed:', e);
+      }
       return false;
     }
   }

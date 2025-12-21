@@ -332,7 +332,7 @@ window.GameAssets = (() => {
         // Try onload fallback with timeout
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
-            reject(new Error(`Image load timeout for ${src}`));
+            reject(new Error(`Image load timeout for ${src} (10s)`));
           }, 10000); // 10 second timeout
 
           img.onload = () => {
@@ -341,7 +341,10 @@ window.GameAssets = (() => {
           };
           img.onerror = (event) => {
             clearTimeout(timeout);
-            reject(new Error(`Image failed to load: ${src} (${event?.type || 'error'})`));
+            const errorMsg = `Image failed to load: ${src}`;
+            const errorDetails = event?.type ? ` (event: ${event.type})` : '';
+            const blobInfo = blob ? ` (blob size: ${blob.size}, type: ${blob.type || 'unknown'})` : ' (no blob)';
+            reject(new Error(`${errorMsg}${errorDetails}${blobInfo}`));
           };
         });
       }
@@ -362,8 +365,15 @@ window.GameAssets = (() => {
 
       return img;
     } catch (error) {
-      console.error(`Failed to load image ${src}:`, error);
-      throw error;
+      const errorDetails = {
+        message: error?.message || String(error),
+        name: error?.name,
+        blobSize: blob?.size,
+        blobType: blob?.type,
+        src: src
+      };
+      console.error(`Failed to load image ${src}:`, errorDetails, error);
+      throw new Error(`Failed to load image ${src}: ${error?.message || error} (blob: ${blob?.size || 0} bytes, type: ${blob?.type || 'unknown'})`);
     }
   }
 
