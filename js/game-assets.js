@@ -523,8 +523,22 @@ window.GameAssets = (() => {
       const atlasJsonPath = `${config.atlas_path}.json${cacheBuster}`;
       const atlasData = await fetchJson(atlasJsonPath);
 
-      const atlasImagePath = `${config.atlas_path}.png`;
-      const atlasImage = await loadImage(atlasImagePath);
+      const atlasImagePath = `${config.atlas_path}.png${cacheBuster}`;
+      let atlasImage;
+      try {
+        atlasImage = await loadImage(atlasImagePath);
+      } catch (error) {
+        console.error(`Failed to load character atlas for ${charName}:`, error);
+        // If it's a 404 (HTML response), provide a more helpful error
+        if (error?.message?.includes('text/html') || error?.blobType === 'text/html') {
+          throw new Error(
+            `Character atlas image not found: ${atlasImagePath}\n` +
+            `This usually means the file wasn't deployed to the server.\n` +
+            `Please ensure ${config.atlas_path}.png exists and is committed to git.`
+          );
+        }
+        throw error;
+      }
 
       // Track asset for memory management
       if (window.MemoryManager) {
