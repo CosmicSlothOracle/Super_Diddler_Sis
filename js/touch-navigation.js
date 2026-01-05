@@ -385,12 +385,13 @@ window.TouchNavigation = (() => {
       coords.y >= danceTop &&
       coords.y <= danceBottom
     ) {
-      // Dance selected
-      state.selectedGameMode = "dance";
+      // Dance selected - DISABLED FOR USER TEST
+      // Do nothing, Dance mode is disabled
+      // state.selectedGameMode = "dance";
       // Auto-confirm after short delay
-      setTimeout(() => {
-        state.input.keysPressed.add("Enter");
-      }, 200);
+      // setTimeout(() => {
+      //   state.input.keysPressed.add("Enter");
+      // }, 200);
     }
   }
 

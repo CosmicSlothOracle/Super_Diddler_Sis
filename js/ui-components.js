@@ -453,6 +453,9 @@ window.UIComponents = (() => {
 
   // Draw controller section images (r3, buttons)
   function drawControllerSections(ctx, state) {
+    // DISABLED FOR USER TEST: Controller sections hidden
+    return;
+
     if (!state.controllerSections) return;
 
     const sections = state.controllerSections;
@@ -835,6 +838,18 @@ window.UIComponents = (() => {
         ctx.font = `${theme.typography?.weightSemi || 600} 20px ${fontPrimary}`;
         ctx.textAlign = "center";
         ctx.fillText("No Preview", x + stageSize / 2, y + stageSize / 2);
+      }
+
+      // "COMING SOON" overlay for disabled stages
+      if (data?.disabled) {
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(drawX, drawY, drawSize, drawSize);
+        ctx.fillStyle = theme.palette.disabledText || "rgba(255, 255, 255, 0.8)";
+        ctx.font = `${theme.typography?.weightSemi || 600} 28px ${fontPrimary}`;
+        ctx.textAlign = "center";
+        ctx.fillText("COMING SOON", x + stageSize / 2, y + stageSize / 2);
+        ctx.restore();
       }
     });
 
@@ -1923,26 +1938,25 @@ window.UIComponents = (() => {
 
     ctx.restore();
 
-    // Dance Mode (Right)
+    // Dance Mode (Right) - DISABLED FOR USER TEST
     const danceX = centerX + modeSpacing / 2;
     const isDanceSelected = state.selectedGameMode === "dance";
+    const isDanceDisabled = true; // Disabled for user test
 
     ctx.save();
     ctx.translate(danceX, centerY);
 
-    // Border
-    ctx.strokeStyle = isDanceSelected ? "#00ff00" : "#ffffff";
-    ctx.lineWidth = isDanceSelected ? 6 : 3;
+    // Border (grayed out)
+    ctx.strokeStyle = "#666666";
+    ctx.lineWidth = 3;
     ctx.strokeRect(-150, -150, 300, 300);
 
-    // Background
-    ctx.fillStyle = isDanceSelected
-      ? "rgba(0, 255, 0, 0.1)"
-      : "rgba(50, 50, 50, 0.5)";
+    // Background (grayed out)
+    ctx.fillStyle = "rgba(30, 30, 30, 0.7)";
     ctx.fillRect(-150, -150, 300, 300);
 
-    // Icon/Text
-    ctx.fillStyle = isDanceSelected ? "#00ff00" : "#ffffff";
+    // Icon/Text (grayed out)
+    ctx.fillStyle = "#666666";
     ctx.font = "bold 32px monospace";
     ctx.textAlign = "center";
     ctx.fillText("DANCE", 0, -50);
@@ -1951,14 +1965,21 @@ window.UIComponents = (() => {
     ctx.fillText("Beats", 0, 30);
     ctx.fillText("Mode", 0, 60);
 
+    // "COMING SOON" overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(-150, -150, 300, 300);
+    ctx.fillStyle = "#999999";
+    ctx.font = "bold 24px monospace";
+    ctx.fillText("COMING SOON", 0, 0);
+
     ctx.restore();
 
-    // Instructions
+    // Instructions (updated: no mode switching, only Classic available)
     ctx.fillStyle = "#ffffff";
     ctx.font = "24px monospace";
     ctx.textAlign = "center";
     ctx.fillText(
-      "Press Y/Triangle to switch mode | A Button to confirm | B to go back",
+      "A Button to confirm | B to go back",
       ctx.canvas.width / 2,
       ctx.canvas.height - 100
     );

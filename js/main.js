@@ -1702,27 +1702,74 @@
       getGamepadButtonPressed(0, 3) ||
       getGamepadButtonPressed(1, 3);
 
+    // Helper function to skip disabled stages
+    const getNextAvailableStage = (currentIndex, direction) => {
+      let newIndex = currentIndex;
+      let attempts = 0;
+      const maxAttempts = stageList.length; // Prevent infinite loop
+
+      while (attempts < maxAttempts) {
+        if (direction === 1) {
+          newIndex = (newIndex + 1) % stageList.length;
+        } else if (direction === -1) {
+          newIndex = (newIndex - 1 + stageList.length) % stageList.length;
+        }
+
+        const stageKey = stageList[newIndex];
+        const stageData = state.selection.stages[stageKey];
+        if (!stageData?.disabled) {
+          return newIndex;
+        }
+        attempts++;
+      }
+      return currentIndex; // Fallback to current if all stages are disabled
+    };
+
     if (navRight) {
-      state.selection.stageIndex =
-        (state.selection.stageIndex + 1) % stageList.length;
+      state.selection.stageIndex = getNextAvailableStage(state.selection.stageIndex, 1);
     }
     if (navLeft) {
-      state.selection.stageIndex =
-        (state.selection.stageIndex - 1 + stageList.length) % stageList.length;
+      state.selection.stageIndex = getNextAvailableStage(state.selection.stageIndex, -1);
     }
     if (navDown) {
-      // Move down one row (5 columns per row)
-      const newIndex = state.selection.stageIndex + cols;
-      state.selection.stageIndex =
-        newIndex < stageList.length ? newIndex : state.selection.stageIndex;
+      // Move down one row (5 columns per row), skip disabled stages
+      let newIndex = state.selection.stageIndex + cols;
+      if (newIndex < stageList.length) {
+        const stageKey = stageList[newIndex];
+        const stageData = state.selection.stages[stageKey];
+        if (!stageData?.disabled) {
+          state.selection.stageIndex = newIndex;
+        } else {
+          // Try to find next available stage in same direction
+          state.selection.stageIndex = getNextAvailableStage(newIndex, 1);
+        }
+      }
     }
     if (navUp) {
-      // Move up one row (5 columns per row)
-      const newIndex = state.selection.stageIndex - cols;
-      state.selection.stageIndex =
-        newIndex >= 0 ? newIndex : state.selection.stageIndex;
+      // Move up one row (5 columns per row), skip disabled stages
+      let newIndex = state.selection.stageIndex - cols;
+      if (newIndex >= 0) {
+        const stageKey = stageList[newIndex];
+        const stageData = state.selection.stages[stageKey];
+        if (!stageData?.disabled) {
+          state.selection.stageIndex = newIndex;
+        } else {
+          // Try to find next available stage in same direction
+          state.selection.stageIndex = getNextAvailableStage(newIndex, -1);
+        }
+      }
     }
     if (confirm) {
+      // Check if selected stage is disabled
+      const selectedStageKey = stageList[state.selection.stageIndex];
+      const selectedStageData = state.selection.stages[selectedStageKey];
+      if (selectedStageData?.disabled) {
+        // Don't allow starting disabled stages
+        console.log(`Stage ${selectedStageKey} is disabled (Coming Soon)`);
+        InputHandler.clearInputEdges(state);
+        return;
+      }
+
       // Transition to game mode select instead of starting game directly
       setGameMode("GAME_MODE_SELECT");
       state.selectedGameMode = "classic"; // Reset to classic by default
@@ -1850,13 +1897,22 @@
       getGamepadButtonPressed(0, 3) ||
       getGamepadButtonPressed(1, 3);
 
-    if (toggleModeLeft || toggleModeRight) {
-      state.selectedGameMode =
-        state.selectedGameMode === "classic" ? "dance" : "classic";
-      console.log(`Game mode switched to: ${state.selectedGameMode}`);
-    }
+    // DISABLED FOR USER TEST: Dance mode toggle removed, only Classic available
+    // if (toggleModeLeft || toggleModeRight) {
+    //   state.selectedGameMode =
+    //     state.selectedGameMode === "classic" ? "dance" : "classic";
+    //   console.log(`Game mode switched to: ${state.selectedGameMode}`);
+    // }
+
+    // Force Classic mode for user test
+    state.selectedGameMode = "classic";
 
     if (confirm) {
+      // Only allow Classic mode for user test
+      if (state.selectedGameMode !== "classic") {
+        state.selectedGameMode = "classic";
+      }
+
       const selectedStageKey = Object.keys(state.selection.stages)[
         state.selection.stageIndex
       ];

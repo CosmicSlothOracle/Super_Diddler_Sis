@@ -248,7 +248,7 @@ window.AudioSystem = (() => {
       volume: 0.3,
     },
     PVP_STAGE_2: {
-      src: "assets/audio/music/stages/pvp_stage_2_94bpm.ogg",
+      src: "assets/audio/music/stages/pvp_stage_2_140bpm.ogg",
       loop: true,
       volume: 0.3,
     },
