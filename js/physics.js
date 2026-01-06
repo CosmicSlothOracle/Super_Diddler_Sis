@@ -916,13 +916,13 @@ window.Physics = (() => {
 
   function startCooldown(p, ability, state) {
     if (p.cooldowns && state.cooldownConfig) {
-      // Cyboard L2 has a special 3 second cooldown to prevent spam
+      // Cyboard L2 has a special 1 second cooldown to prevent spam
       if (ability === "l2" && p.charName === "cyboard") {
-        p.cooldowns[ability] = 3.0;
+        p.cooldowns[ability] = 1.0;
         debugLog(
           `[startCooldown] P${
             p.padIndex + 1
-          } (Cyboard): L2 cooldown set to 3.0 seconds`
+          } (Cyboard): L2 cooldown set to 1.0 seconds`
         );
       } else {
         p.cooldowns[ability] = state.cooldownConfig[ability];
