@@ -1979,11 +1979,11 @@ window.Renderer = (() => {
 
   function getL2SmashHitbox(p, state) {
     // Cyboard L2 Smash - overhead sword strike hitbox
-    const w = 140; // Wide hitbox for the sword swing
-    const h = 180; // Tall hitbox for overhead strike
+    const w = 200; // Wide hitbox for the sword swing (increased from 140)
+    const h = 220; // Tall hitbox for overhead strike (increased from 180)
 
-    // Positioned in front of the player, slightly forward
-    const forwardOffset = 30 * p.facing;
+    // Positioned in front of the player, increased forward reach
+    const forwardOffset = 50 * p.facing; // Increased from 30 for better reach
     const left = p.pos.x + forwardOffset - w / 2;
     const top = p.pos.y - h - 20; // Slightly above player for overhead strike
 

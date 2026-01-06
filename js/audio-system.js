@@ -238,7 +238,7 @@ window.AudioSystem = (() => {
     },
     // PVP Stage Music Tracks (BPM in filenames)
     PVP_STAGE: {
-      src: "assets/audio/music/stages/pvp_stage_105bpm.ogg",
+      src: "assets/audio/music/stages/pvp_stage_76bpm.ogg",
       loop: true,
       volume: 0.3,
     },

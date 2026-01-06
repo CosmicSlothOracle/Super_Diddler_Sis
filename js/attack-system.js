@@ -4675,10 +4675,12 @@ window.AttackSystem = (() => {
 
     // Grab Phase (003-005)
     if (p.attack.phase === "grab") {
-      // Perform hit check on the first frame of grab
-      if (!p.attack.grabChecked) {
-        p.attack.grabChecked = true;
+      // Extended hit detection window: check for 3 frames (~0.25s @ 12fps)
+      const GRAB_CHECK_FRAMES = 3;
+      p.attack.grabCheckFrames = (p.attack.grabCheckFrames || 0) + 1;
 
+      // Perform hit check each frame during the detection window
+      if (p.attack.grabCheckFrames <= GRAB_CHECK_FRAMES) {
         const atkRect = Renderer.getL2SmashHitbox(p, state);
         let grabbedTarget = null;
         for (const target of state.players) {
@@ -4710,21 +4712,25 @@ window.AttackSystem = (() => {
 
           // Loop the grab animation while holding
           setAnim(p, "l2_smash_grab", true, state);
-        } else {
-          // Miss: No target found at peak
-          // Cancel attack immediately and transition to normal fall
-          p.attack = { type: "none", phase: "none" };
-
-          // Reset vertical velocity to start falling from peak
-          p.vel.y = 0;
-
-          // Disable jump until grounded (prevent mobility abuse)
-          p.jumpsLeft = 0;
-
-          // Preserve horizontal velocity (p.vel.x) from the jump phase
-          // so he continues drifting forward naturally.
-          // The physics system will take over from here (gravity -> normal fall anim).
+          return;
         }
+      }
+
+      // After detection window expires, if no hit found, cancel attack
+      if (p.attack.grabCheckFrames > GRAB_CHECK_FRAMES) {
+        // Miss: No target found during detection window
+        // Cancel attack and transition to normal fall
+        p.attack = { type: "none", phase: "none" };
+
+        // Reset vertical velocity to start falling from peak
+        p.vel.y = 0;
+
+        // Disable jump until grounded (prevent mobility abuse)
+        p.jumpsLeft = 0;
+
+        // Preserve horizontal velocity (p.vel.x) from the jump phase
+        // so he continues drifting forward naturally.
+        // The physics system will take over from here (gravity -> normal fall anim).
       }
       return;
     }
