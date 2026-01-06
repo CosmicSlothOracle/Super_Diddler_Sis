@@ -618,10 +618,6 @@ window.UIComponents = (() => {
     // Controller-Sektionen unten anzeigen
     drawControllerSections(ctx, state);
 
-    // Controller-Verbindung (wenn vorhanden)
-    const legendCenterX = ctx.canvas.width / 2;
-    drawControllerConnection(ctx, legendCenterX, ctx.canvas.height - 20);
-
     // Splash-Art in reduzierter Größe (256x256) mit Rahmen - Dynamic Grid (3 columns)
     const imageSize = 256; // 50% der Originalgröße (512x512 -> 256x256)
     const spacing = 30; // Abstand zwischen den Bildern (auch 50% reduziert)
@@ -855,19 +851,6 @@ window.UIComponents = (() => {
 
     // Controller-Sektionen unten anzeigen
     drawControllerSections(ctx, state);
-
-    // Controller-Verbindung (wenn vorhanden)
-    const legendCenterX = ctx.canvas.width / 2;
-    const legendY = ctx.canvas.height - 170;
-    drawControllerConnection(ctx, legendCenterX, ctx.canvas.height - 20);
-
-    // Navigation Hinweis
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.fillStyle = theme.palette.textSecondary || "rgba(255,255,255,0.6)";
-    ctx.font = `500 20px ${fontPrimary}`;
-    ctx.fillText("Navigate • Confirm / Back", legendCenterX, legendY + 150);
-    ctx.restore();
   }
 
   // Title Screen Komponente
@@ -1973,16 +1956,6 @@ window.UIComponents = (() => {
     ctx.fillText("COMING SOON", 0, 0);
 
     ctx.restore();
-
-    // Instructions (updated: no mode switching, only Classic available)
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "24px monospace";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      "A Button to confirm | B to go back",
-      ctx.canvas.width / 2,
-      ctx.canvas.height - 100
-    );
   }
 
   function wrapTextLines(ctx, text, maxWidth) {
