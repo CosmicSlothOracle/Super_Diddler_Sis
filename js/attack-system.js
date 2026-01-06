@@ -1212,11 +1212,12 @@ window.AttackSystem = (() => {
    * @param {Object} inputs - Input state
    * @param {Object} state - Game state
    */
-  function handleL2Attack(p, inputs, state) {
+  function handleL2Attack(p, inputs, state, grounded) {
     const pconf = p.config.physics;
 
     // Character-specific L2 attacks
-    const grounded = !!p.grounded;
+    // Use passed grounded parameter, fallback to p.grounded if not provided
+    const isGrounded = grounded !== undefined ? grounded : !!p.grounded;
     const dt = state.deltaTime;
 
     // Modular owns L2 for all characters (including Cyboard)
@@ -1226,6 +1227,11 @@ window.AttackSystem = (() => {
       p.charName === "HP" || charKey === "hp" || charKey === "ernst"
         ? "l2_ranged"
         : "l2";
+
+    // Cyboard L2 can only be used when grounded (prevents spam)
+    if (p.charName === "cyboard" && !isGrounded) {
+      return; // Don't allow L2 attack in air
+    }
 
     // Initialize L2 attack if not already active
     if (!p.attack || p.attack.type !== attackType) {
@@ -1255,14 +1261,14 @@ window.AttackSystem = (() => {
     }
 
     if (p.charName === "cyboard") {
-      handleCyboardL2(p, inputs, state, grounded, dt);
+      handleCyboardL2(p, inputs, state, isGrounded, dt);
     } else if (p.charName === "fritz") {
-      handleFritzL2(p, inputs, state, grounded, dt);
+      handleFritzL2(p, inputs, state, isGrounded, dt);
     } else if (charKey === "hp" || charKey === "ernst") {
-      handleHPL2(p, inputs, state, grounded, dt);
+      handleHPL2(p, inputs, state, isGrounded, dt);
     } else {
       // Default L2 attack
-      handleDefaultL2(p, inputs, state, grounded, dt);
+      handleDefaultL2(p, inputs, state, isGrounded, dt);
     }
   }
 

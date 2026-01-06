@@ -895,17 +895,21 @@ window.Physics = (() => {
   // Helper function to check and start cooldown
   function canUseAbility(p, ability) {
     const canUse = !p.cooldowns || p.cooldowns[ability] <= 0;
+    // Cyboard L2 requires ground contact to prevent spam
     if (ability === "l2" && p.charName === "cyboard") {
+      const grounded = !!p.grounded;
+      const canUseGrounded = canUse && grounded;
       debugLog(
         `[canUseAbility] P${
           p.padIndex + 1
-        } (Cyboard): L2 ability check - canUse: ${canUse}`
+        } (Cyboard): L2 ability check - canUse: ${canUse}, grounded: ${grounded}, final: ${canUseGrounded}`
       );
       debugLog(
         `[canUseAbility] - l2 cooldown: ${
           p.cooldowns?.[ability] || "undefined"
         }`
       );
+      return canUseGrounded;
     }
     return canUse;
   }
