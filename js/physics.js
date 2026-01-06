@@ -916,7 +916,17 @@ window.Physics = (() => {
 
   function startCooldown(p, ability, state) {
     if (p.cooldowns && state.cooldownConfig) {
-      p.cooldowns[ability] = state.cooldownConfig[ability];
+      // Cyboard L2 has a special 3 second cooldown to prevent spam
+      if (ability === "l2" && p.charName === "cyboard") {
+        p.cooldowns[ability] = 3.0;
+        debugLog(
+          `[startCooldown] P${
+            p.padIndex + 1
+          } (Cyboard): L2 cooldown set to 3.0 seconds`
+        );
+      } else {
+        p.cooldowns[ability] = state.cooldownConfig[ability];
+      }
     }
   }
   function handleAttacks(dt, p, inputs, state) {

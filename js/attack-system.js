@@ -1228,13 +1228,13 @@ window.AttackSystem = (() => {
         ? "l2_ranged"
         : "l2";
 
-    // Cyboard L2 can only be used when grounded (prevents spam)
-    if (p.charName === "cyboard" && !isGrounded) {
-      return; // Don't allow L2 attack in air
-    }
-
     // Initialize L2 attack if not already active
     if (!p.attack || p.attack.type !== attackType) {
+      // Cyboard L2 can only be STARTED when grounded (prevents spam)
+      // Note: Once started, the attack can continue in air (includes jump)
+      if (p.charName === "cyboard" && !isGrounded) {
+        return; // Don't allow starting L2 attack in air
+      }
       p.attack = {
         type: attackType,
         phase: "start",
