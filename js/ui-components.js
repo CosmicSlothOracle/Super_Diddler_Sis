@@ -1213,6 +1213,12 @@ window.UIComponents = (() => {
   // NEW: In-game modal component
   function renderInGameModal(ctx, state) {
     if (!state.modal.isOpen) return;
+    
+    // Don't render game menu modal when scoreboard is showing
+    const isScoreboardShowing =
+      state.matchEnd?.isActive &&
+      state.matchEnd?.phase === "showingResults";
+    if (isScoreboardShowing) return;
 
     const modal = state.modal;
     const centerX = ctx.canvas.width / 2;
