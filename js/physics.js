@@ -10108,11 +10108,15 @@ window.Physics = (() => {
 
           // Show modal when animation is complete
           if (modalProgress >= 1) {
-            state.modal.isOpen = true;
-            state.modal.selectedButton = 0; // Reset to first button
-            // Set grace period to ignore input for 0.2 seconds after modal opens
-            if (!me.scoreboardOpenTime) {
-              me.scoreboardOpenTime = currentTime;
+            if (!state.modal.isOpen) {
+              console.log("[SCOREBOARD] 🔓 Opening scoreboard modal at time:", currentTime);
+              state.modal.isOpen = true;
+              state.modal.selectedButton = 0; // Reset to first button
+              // Set grace period to ignore input for 0.2 seconds after modal opens
+              if (!me.scoreboardOpenTime) {
+                me.scoreboardOpenTime = currentTime;
+                console.log("[SCOREBOARD] ⏱️ Set grace period start time:", me.scoreboardOpenTime);
+              }
             }
           }
         }

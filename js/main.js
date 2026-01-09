@@ -998,23 +998,24 @@
 
         // NEW: Modal UI overlay
         // Show scoreboard if match end sequence is in showingResults phase
-        if (
+        const isScoreboardShowing =
           state.matchEnd?.isActive &&
           state.matchEnd?.phase === "showingResults" &&
-          state.modal?.isOpen
-        ) {
+          state.modal?.isOpen;
+        
+        if (isScoreboardShowing) {
+          console.log("[SCOREBOARD] 🎨 Rendering scoreboard modal. isOpen:", state.modal.isOpen, "phase:", state.matchEnd.phase, "scoreboardOpenTime:", state.matchEnd.scoreboardOpenTime);
           UIComponents.renderMatchScoreboard(ctx, state);
         } else {
+          if (state.matchEnd?.isActive && state.matchEnd?.phase === "showingResults") {
+            console.log("[SCOREBOARD] ❌ Scoreboard should show but isOpen is false. Phase:", state.matchEnd.phase, "isActive:", state.matchEnd.isActive);
+          }
           UIComponents.renderInGameModal(ctx, state);
         }
         UIComponents.renderControlsModal(ctx, state);
 
         // NEW: Handle scoreboard input (ESC/Enter to close) and auto-submit scores
         // Skip regular modal input handling when scoreboard is showing
-        const isScoreboardShowing =
-          state.matchEnd?.isActive &&
-          state.matchEnd?.phase === "showingResults" &&
-          state.modal?.isOpen;
 
         if (!isScoreboardShowing) {
           // NEW: Handle modal input (only when scoreboard is NOT showing)
@@ -1066,11 +1067,13 @@
           }
 
           // Ignore input for 0.2 seconds after modal first opens (grace period to prevent stale input)
-          const currentTime = state.lastTime || (performance.now() / 1000);
+          const currentTime = state.lastTime || performance.now() / 1000;
           const scoreboardOpenTime = state.matchEnd.scoreboardOpenTime || 0;
           const gracePeriod = 0.2; // 200ms grace period
           const timeSinceOpen = currentTime - scoreboardOpenTime;
           const isGracePeriod = timeSinceOpen < gracePeriod;
+          
+          console.log("[SCOREBOARD] 🔍 Input check - currentTime:", currentTime, "openTime:", scoreboardOpenTime, "timeSinceOpen:", timeSinceOpen.toFixed(3), "gracePeriod:", isGracePeriod, "isOpen:", state.modal.isOpen);
           
           if (!isGracePeriod) {
             // Only respond to confirm button press (not ESC/back)
@@ -1097,6 +1100,7 @@
 
             // Only proceed if confirm button is pressed (button is always selected)
             if (confirmPressed || gamepadConfirm) {
+              console.log("[SCOREBOARD] 🔴 CLOSING scoreboard - confirmPressed:", confirmPressed, "gamepadConfirm:", gamepadConfirm);
               // Close scoreboard and transition to complete phase
               state.modal.isOpen = false;
               if (state.matchEnd.phase === "showingResults") {
@@ -2932,6 +2936,7 @@
         state.modal?.isOpen;
 
       if (isScoreboardShowing) {
+        console.log("[SCOREBOARD] 🛡️ checkStartButtonAsESC: Guarded by isScoreboardShowing check");
         return; // Scoreboard handles its own input
       }
 
@@ -2947,6 +2952,7 @@
           state.modal.controlsModal.lastCaptureTime = 0;
         } else if (state.modal.isOpen) {
           // Close main modal
+          console.log("[SCOREBOARD] ⚠️ checkStartButtonAsESC: Closing modal via ESC/Start button!");
           state.modal.isOpen = false;
         } else {
           // Open main modal
@@ -2982,7 +2988,10 @@
       state.matchEnd?.isActive &&
       state.matchEnd?.phase === "showingResults" &&
       state.modal?.isOpen;
-    if (isScoreboardShowing) return;
+    if (isScoreboardShowing) {
+      console.log("[SCOREBOARD] 🛡️ handleModalInput: Guarded by isScoreboardShowing check");
+      return;
+    }
 
     const pressed = state.input.keysPressed;
     const kd = state.input.keysDown;
@@ -3235,6 +3244,7 @@
       const back =
         getGamepadButtonPressed(0, 3) || getGamepadButtonPressed(1, 3);
       if (back) {
+        console.log("[SCOREBOARD] ⚠️ handleModalInput: Closing modal via Back button!");
         state.modal.isOpen = false;
       }
     }
