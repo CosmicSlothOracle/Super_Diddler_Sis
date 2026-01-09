@@ -1671,6 +1671,14 @@ window.AttackSystem = (() => {
     // Apply damage
     target.percent += finalDamage;
 
+    // NEU: Track damage dealt to attacker stats
+    if (attacker && typeof attacker.padIndex === "number" && state.matchStats) {
+      const playerIndex = attacker.padIndex;
+      if (state.matchStats[playerIndex]) {
+        state.matchStats[playerIndex].damageDealt += finalDamage;
+      }
+    }
+
     // NEW: Track Ultimate hit for Tutorial Part 2
     const isUltimateAttack =
       attacker.attack?.type === "ultimate" ||
@@ -5768,6 +5776,14 @@ window.AttackSystem = (() => {
         p.beatmatchMode = true;
         if (rhythmBonus.showFx) {
           spawnRhythmEffect(state, p);
+        }
+
+        // NEU: Beat-Attack Tracking
+        if (p && typeof p.padIndex === "number" && state.matchStats) {
+          const playerIndex = p.padIndex;
+          if (state.matchStats[playerIndex]) {
+            state.matchStats[playerIndex].beatAttacks++;
+          }
         }
       } else {
         p.beatmatchMode = false;

@@ -841,7 +841,8 @@ window.UIComponents = (() => {
         ctx.save();
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(drawX, drawY, drawSize, drawSize);
-        ctx.fillStyle = theme.palette.disabledText || "rgba(255, 255, 255, 0.8)";
+        ctx.fillStyle =
+          theme.palette.disabledText || "rgba(255, 255, 255, 0.8)";
         ctx.font = `${theme.typography?.weightSemi || 600} 28px ${fontPrimary}`;
         ctx.textAlign = "center";
         ctx.fillText("COMING SOON", x + stageSize / 2, y + stageSize / 2);
@@ -2191,6 +2192,365 @@ window.UIComponents = (() => {
     ctx.restore();
   }
 
+  /**
+   * RENDER MATCH SCOREBOARD | Dance-to-Beatmatch-Ratio Leaderboard Integration
+   * Displays match statistics with focus on Dance-to-Beatmatch Ratio
+   */
+  function renderMatchScoreboard(ctx, state) {
+    const stats = state.matchStats || [];
+    const p1Stats = stats[0] || {};
+    const p2Stats = stats[1] || {};
+    const theme = getTheme();
+    const fontPrimary = theme.typography?.fontPrimary || FONT_PRIMARY_FAMILY;
+
+    // Calculate Dance-to-Beatmatch Ratio
+    const calculateRatio = (playerStats) => {
+      if (!playerStats || playerStats.danceAttempts <= 0) return 0;
+      return Math.round(
+        (playerStats.beatmatches / playerStats.danceAttempts) * 100
+      );
+    };
+
+    const p1Ratio = calculateRatio(p1Stats);
+    const p2Ratio = calculateRatio(p2Stats);
+    const p1Eligible = (p1Stats.beatmatches || 0) >= 10;
+    const p2Eligible = (p2Stats.beatmatches || 0) >= 10;
+
+    // Calculate Air Time percentage
+    const p1AirTime =
+      p1Stats.totalTicks > 0
+        ? Math.round((p1Stats.airTimeTicks / p1Stats.totalTicks) * 100)
+        : 0;
+    const p2AirTime =
+      p2Stats.totalTicks > 0
+        ? Math.round((p2Stats.airTimeTicks / p2Stats.totalTicks) * 100)
+        : 0;
+
+    // Modal dimensions
+    const centerX = ctx.canvas.width / 2;
+    const centerY = ctx.canvas.height / 2;
+    const boardWidth = 1000;
+    const boardHeight = 650;
+    const boardX = centerX - boardWidth / 2;
+    const boardY = centerY - boardHeight / 2;
+
+    // Background overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    // Main panel with glass effect
+    ctx.save();
+    drawRoundedRect(ctx, boardX, boardY, boardWidth, boardHeight, 16);
+    ctx.fillStyle = theme.bgGlass || "rgba(18, 18, 18, 0.95)";
+    ctx.fill();
+    ctx.strokeStyle = theme.palette.strokeSubtle || "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Title with glow
+    ctx.save();
+    ctx.font = `${theme.typography?.weightBold || 700} 48px ${fontPrimary}`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = theme.palette.textPrimary || "#FFFFFF";
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "rgba(150, 150, 255, 0.65)";
+    ctx.fillText("MATCH RESULTS", centerX, boardY + 60);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+    // Column layout
+    const col1X = boardX + 120;
+    const col2X = boardX + 520;
+    const statY = boardY + 120;
+
+    // Player headers
+    ctx.save();
+    ctx.font = `${theme.typography?.weightSemi || 600} 24px ${fontPrimary}`;
+    ctx.textAlign = "left";
+    ctx.fillStyle = theme.p1Frame || "#00D1FF";
+    ctx.fillText("PLAYER 1", col1X, statY);
+    ctx.fillStyle = theme.p2Frame || "#FF2E88";
+    ctx.fillText("PLAYER 2", col2X, statY);
+    ctx.restore();
+
+    // Helper function to draw stat rows
+    const drawStatRow = (
+      label,
+      p1Val,
+      p2Val,
+      yPos,
+      highlightWinner = false
+    ) => {
+      ctx.font = `500 18px ${fontPrimary}`;
+      ctx.fillStyle = theme.palette.textSecondary || "rgba(200,200,200,0.85)";
+      ctx.textAlign = "left";
+      ctx.fillText(label, col1X, yPos);
+
+      // Determine winner color
+      let color1 = theme.palette.textPrimary || "rgba(220,220,220,0.9)";
+      let color2 = theme.palette.textPrimary || "rgba(220,220,220,0.9)";
+
+      if (
+        highlightWinner &&
+        typeof p1Val === "number" &&
+        typeof p2Val === "number"
+      ) {
+        if (p1Val > p2Val) {
+          color1 = theme.p1Frame || "#00D1FF";
+        } else if (p2Val > p1Val) {
+          color2 = theme.p2Frame || "#FF2E88";
+        }
+      }
+
+      ctx.fillStyle = color1;
+      ctx.fillText(String(p1Val), col1X + 180, yPos);
+      ctx.fillStyle = color2;
+      ctx.fillText(String(p2Val), col2X + 180, yPos);
+    };
+
+    // Primary Metric: Dance-to-Beatmatch Ratio (LARGE DISPLAY)
+    const yStart = statY + 50;
+    ctx.save();
+    ctx.font = `${theme.typography?.weightBold || 700} 22px ${fontPrimary}`;
+    ctx.fillStyle = theme.palette.accent || "#00D1FF";
+    ctx.textAlign = "left";
+    ctx.fillText("Dance-to-Beatmatch Ratio", col1X, yStart);
+    ctx.restore();
+
+    // Ratio display with color coding
+    const getRatioColor = (ratio, eligible) => {
+      if (!eligible) return "#999999";
+      if (ratio >= 90) return "#7CFB2E"; // Green
+      if (ratio >= 70) return "#FFFF00"; // Yellow
+      return "#FF4444"; // Red
+    };
+
+    ctx.save();
+    ctx.font = `${theme.typography?.weightBold || 700} 28px ${fontPrimary}`;
+    ctx.textAlign = "left";
+    const p1RatioDisplay = p1Eligible ? p1Ratio + "%" : "--";
+    const p2RatioDisplay = p2Eligible ? p2Ratio + "%" : "--";
+    ctx.fillStyle = getRatioColor(p1Ratio, p1Eligible);
+    ctx.fillText(p1RatioDisplay, col1X + 180, yStart);
+    ctx.fillStyle = getRatioColor(p2Ratio, p2Eligible);
+    ctx.fillText(p2RatioDisplay, col2X + 180, yStart);
+    ctx.restore();
+
+    // Detailed stats
+    const yStep = 35;
+    drawStatRow(
+      "Perfect Beatmatches",
+      p1Stats.perfectBeats || 0,
+      p2Stats.perfectBeats || 0,
+      yStart + yStep,
+      true
+    );
+    drawStatRow(
+      "Beat-match Attacks",
+      p1Stats.beatAttacks || 0,
+      p2Stats.beatAttacks || 0,
+      yStart + yStep * 2,
+      true
+    );
+    drawStatRow(
+      "Damage Dealt",
+      Math.round(p1Stats.damageDealt || 0),
+      Math.round(p2Stats.damageDealt || 0),
+      yStart + yStep * 3,
+      true
+    );
+    drawStatRow(
+      "Air Time",
+      p1AirTime + "%",
+      p2AirTime + "%",
+      yStart + yStep * 4,
+      true
+    );
+    drawStatRow(
+      "Dance Attempts",
+      p1Stats.danceAttempts || 0,
+      p2Stats.danceAttempts || 0,
+      yStart + yStep * 5,
+      false
+    );
+    drawStatRow(
+      "Successful Beatmatches",
+      Math.round(p1Stats.beatmatches || 0),
+      Math.round(p2Stats.beatmatches || 0),
+      yStart + yStep * 6,
+      true
+    );
+
+    // Eligibility notice
+    ctx.save();
+    ctx.font = `500 16px ${fontPrimary}`;
+    ctx.textAlign = "center";
+    if (!p1Eligible && !p2Eligible) {
+      ctx.fillStyle = "rgba(255,100,100,0.9)";
+      ctx.fillText(
+        "⚠ Für Leaderboard-Wertung werden mindestens 10 erfolgreiche Beatmatches benötigt",
+        centerX,
+        boardY + boardHeight - 140
+      );
+    } else {
+      ctx.fillStyle = "rgba(100,220,100,0.9)";
+      ctx.fillText(
+        "✓ Eligible für Netlify-Leaderboard-Submission",
+        centerX,
+        boardY + boardHeight - 140
+      );
+    }
+    ctx.restore();
+
+    // Continue Button
+    const buttonY = boardY + boardHeight - 90;
+    const buttonWidth = 320;
+    const buttonHeight = 56;
+    const buttonX = centerX - buttonWidth / 2;
+    const buttonRadius = 12;
+    const nowSeconds =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) /
+      1000;
+    const isButtonSelected = state.matchEnd?.scoreboardButtonSelected !== false; // Default to selected
+    const confirmColor = theme.palette.roles?.confirm || "#B8E986";
+
+    // Button background with glow effect
+    if (isButtonSelected) {
+      const pulse = (Math.sin(nowSeconds * 5) + 1) / 2;
+
+      // Gradient background
+      const gradient = ctx.createLinearGradient(
+        buttonX,
+        buttonY,
+        buttonX + buttonWidth,
+        buttonY + buttonHeight
+      );
+      gradient.addColorStop(
+        0,
+        colorWithAlpha(confirmColor, 0.2 + 0.15 * pulse)
+      );
+      gradient.addColorStop(
+        0.5,
+        colorWithAlpha("#FFFFFF", 0.08 + 0.08 * pulse)
+      );
+      gradient.addColorStop(
+        1,
+        colorWithAlpha(confirmColor, 0.32 + 0.18 * pulse)
+      );
+
+      ctx.save();
+      drawRoundedRect(
+        ctx,
+        buttonX,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius
+      );
+      ctx.fillStyle = gradient;
+      ctx.shadowBlur = (theme.shadows?.buttonGlow ?? 18) + pulse * 14;
+      ctx.shadowColor = colorWithAlpha(confirmColor, 0.85);
+      ctx.fill();
+      ctx.restore();
+
+      // Button border
+      ctx.save();
+      drawRoundedRect(
+        ctx,
+        buttonX,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius
+      );
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = colorWithAlpha(confirmColor, 0.7 + 0.25 * pulse);
+      ctx.stroke();
+      ctx.restore();
+
+      // Side indicators
+      const indicatorWidth = 8 + pulse * 6;
+      const indicatorHeight = Math.max(buttonHeight - 10, buttonHeight * 0.75);
+      const indicatorY = buttonY + (buttonHeight - indicatorHeight) / 2;
+
+      ctx.save();
+      ctx.fillStyle = colorWithAlpha(confirmColor, 0.6 + 0.3 * pulse);
+      ctx.shadowColor = colorWithAlpha(confirmColor, 0.8);
+      ctx.shadowBlur = 8 + pulse * 6;
+      ctx.fillRect(
+        buttonX - indicatorWidth - 6,
+        indicatorY,
+        indicatorWidth,
+        indicatorHeight
+      );
+      ctx.fillRect(
+        buttonX + buttonWidth + 6,
+        indicatorY,
+        indicatorWidth,
+        indicatorHeight
+      );
+      ctx.restore();
+    } else {
+      // Unselected button
+      const disabledColor = theme.palette.disabled || "rgba(255,255,255,0.25)";
+      ctx.save();
+      drawRoundedRect(
+        ctx,
+        buttonX,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius
+      );
+      ctx.fillStyle = colorWithAlpha(disabledColor, 0.2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      drawRoundedRect(
+        ctx,
+        buttonX,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius
+      );
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = theme.palette.strokeSubtle || "rgba(255,255,255,0.4)";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Button text
+    ctx.save();
+    ctx.textAlign = "center";
+    if (isButtonSelected) {
+      const pulse = (Math.sin(nowSeconds * 5) + 1) / 2;
+      ctx.fillStyle = theme.palette.textPrimary || "#FFFFFF";
+      ctx.shadowColor = colorWithAlpha(confirmColor, 0.4 + 0.4 * pulse);
+      ctx.shadowBlur = 12 + pulse * 8;
+      ctx.font = `${theme.typography?.weightBold || 700} 22px ${fontPrimary}`;
+    } else {
+      ctx.fillStyle = theme.palette.textSecondary || "rgba(200,200,200,0.85)";
+      ctx.font = `${theme.typography?.weightSemi || 600} 20px ${fontPrimary}`;
+    }
+    ctx.fillText("Continue to Menu", centerX, buttonY + buttonHeight / 2 + 8);
+    ctx.restore();
+
+    // Button hint (which player can press)
+    ctx.save();
+    ctx.font = `500 12px ${fontPrimary}`;
+    ctx.fillStyle = theme.palette.textSecondary || "rgba(200,200,200,0.6)";
+    ctx.textAlign = "center";
+    ctx.fillText(
+      "Press Confirm (A/X) or Enter to continue",
+      centerX,
+      buttonY + buttonHeight + 20
+    );
+    ctx.restore();
+  }
+
   return {
     renderTitleScreen,
     renderTitleIntro,
@@ -2202,6 +2562,7 @@ window.UIComponents = (() => {
     renderTutorialModal,
     renderInGameModal,
     renderControlsModal,
+    renderMatchScoreboard, // NEW: Dance-to-Beatmatch-Ratio Scoreboard
     setTheme,
     getTheme,
     themes: uiThemes,

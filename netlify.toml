@@ -8,6 +8,13 @@
   command = "git lfs pull && npm ci && NODE_ENV=production npm run build:web"
   publish = "dist"
 
+# Development server configuration (for netlify dev)
+[dev]
+  # Serve from root directory for local development (no build required)
+  publish = "."
+  # Port for local dev server
+  port = 8888
+
 # Redirect API routes to Netlify Functions
 [[redirects]]
   from = "/api/*"
@@ -77,4 +84,11 @@
   for = "/*.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Netlify Functions configuration
+[functions]
+  # Functions directory
+  directory = "netlify/functions"
+  # Node.js runtime version
+  node_bundler = "esbuild"
 

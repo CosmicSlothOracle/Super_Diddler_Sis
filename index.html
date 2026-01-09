@@ -90,6 +90,7 @@
     <script src="js/tutorial-messages.js?v=20250110_1"></script>
     <script src="js/tutorial-modal.js?v=20250110_1"></script>
     <script src="js/tutorial-system.js?v=20250110_1"></script>
+    <script src="js/leaderboard-client.js?v=20250110_1"></script>
     <script src="js/physics.js?v=20250110_1"></script>
     <script src="js/audio-system.js?v=20250110_1"></script>
     <script src="js/performance-monitor.js?v=20250110_1"></script>
@@ -107,9 +108,14 @@
               reg.addEventListener("updatefound", () => {
                 const newWorker = reg.installing;
                 newWorker.addEventListener("statechange", () => {
-                  if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  if (
+                    newWorker.state === "installed" &&
+                    navigator.serviceWorker.controller
+                  ) {
                     // New service worker available, prompt reload
-                    console.log("[SW] New service worker available, reloading...");
+                    console.log(
+                      "[SW] New service worker available, reloading..."
+                    );
                     window.location.reload();
                   }
                 });

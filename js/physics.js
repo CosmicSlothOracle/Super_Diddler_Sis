@@ -644,6 +644,12 @@ window.Physics = (() => {
     // Log player status and velocity changes (intelligent logging)
     logPlayerStatus(p, state);
 
+    // NEU: Air-Time Tracking
+    state.matchStats[i].totalTicks++;
+    if (!p.grounded) {
+      state.matchStats[i].airTimeTicks++;
+    }
+
     p.prevY = p.pos.y;
   }
 
@@ -1591,6 +1597,8 @@ window.Physics = (() => {
 
     // Dance-Input prüfen (Debug aktiviert)
     if (inputs.danceDown) {
+      // NEU: Dance Attempt tracken
+      state.matchStats[playerIndex].danceAttempts++;
     }
 
     // Perfect-Sequenz-Logik entfernt - dance_c ist jetzt eine einzelne Animation
@@ -1635,6 +1643,12 @@ window.Physics = (() => {
       }
 
       if (beatQuality === "perfect") {
+        // NEU: Erfolgreichen Beatmatch tracken
+        state.matchStats[playerIndex].beatmatches++;
+        state.matchStats[playerIndex].perfectBeats++;
+
+        // updateDanceBeatFeedback already called above on line 1634
+
         // 1. Calculate Multiplier based on Radial Distance (Zone.png logic)
         let chargeMultiplier = 1.0;
         let pointsMultiplier = 1.0;
@@ -2041,6 +2055,26 @@ window.Physics = (() => {
         // NEW: Reduce all cooldowns by beatReduction amount
         if (p.cooldowns && state.cooldownConfig) {
           const reduction = state.cooldownConfig.beatReduction;
+          for (const ability in p.cooldowns) {
+            if (p.cooldowns[ability] > 0) {
+              p.cooldowns[ability] = Math.max(
+                0,
+                p.cooldowns[ability] - reduction
+              );
+            }
+          }
+        }
+
+        spawnRhythmEffect(state, p);
+      } else if (beatQuality === "good") {
+        // NEU: Guter Beat zählt als 0.5 Beatmatch
+        state.matchStats[playerIndex].beatmatches += 0.5;
+
+        // updateDanceBeatFeedback already called above on line 1634
+
+        // Kleiner Bonus für gute Beats
+        if (p.cooldowns && state.cooldownConfig) {
+          const reduction = state.cooldownConfig.beatReduction * 0.5; // Halber Cooldown-Bonus
           for (const ability in p.cooldowns) {
             if (p.cooldowns[ability] > 0) {
               p.cooldowns[ability] = Math.max(

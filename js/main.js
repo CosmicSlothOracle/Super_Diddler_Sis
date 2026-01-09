@@ -997,13 +997,105 @@
         }
 
         // NEW: Modal UI overlay
-        UIComponents.renderInGameModal(ctx, state);
+        // Show scoreboard if match end sequence is in showingResults phase
+        if (
+          state.matchEnd?.isActive &&
+          state.matchEnd?.phase === "showingResults" &&
+          state.modal?.isOpen
+        ) {
+          UIComponents.renderMatchScoreboard(ctx, state);
+        } else {
+          UIComponents.renderInGameModal(ctx, state);
+        }
         UIComponents.renderControlsModal(ctx, state);
 
-        // NEW: Handle modal input
-        handleModalInput(state);
-        // Check for Start button (Button 9) as ESC input
-        checkStartButtonAsESC(state);
+        // NEW: Handle scoreboard input (ESC/Enter to close) and auto-submit scores
+        // Skip regular modal input handling when scoreboard is showing
+        const isScoreboardShowing =
+          state.matchEnd?.isActive &&
+          state.matchEnd?.phase === "showingResults" &&
+          state.modal?.isOpen;
+
+        if (!isScoreboardShowing) {
+          // NEW: Handle modal input (only when scoreboard is NOT showing)
+          handleModalInput(state);
+          // Check for Start button (Button 9) as ESC input
+          checkStartButtonAsESC(state);
+        }
+
+        if (isScoreboardShowing) {
+          // Auto-submit scores to leaderboard (one-time, when scoreboard first opens)
+          if (!state.matchEnd.scoresSubmitted && window.LeaderboardClient) {
+            const stats = state.matchStats || [];
+            const p1Stats = stats[0] || {};
+            const p2Stats = stats[1] || {};
+
+            // Submit P1 score if eligible
+            if (window.LeaderboardClient.isEligible(p1Stats)) {
+              const p1Name = state.players?.[0]?.charName || "Player 1";
+              const p1Submission =
+                window.LeaderboardClient.prepareStatsForSubmission(
+                  stats,
+                  0,
+                  p1Name
+                );
+              window.LeaderboardClient.submitScore(p1Submission).catch(
+                (err) => {
+                  console.warn("[Leaderboard] Failed to submit P1 score:", err);
+                }
+              );
+            }
+
+            // Submit P2 score if eligible
+            if (window.LeaderboardClient.isEligible(p2Stats)) {
+              const p2Name = state.players?.[1]?.charName || "Player 2";
+              const p2Submission =
+                window.LeaderboardClient.prepareStatsForSubmission(
+                  stats,
+                  1,
+                  p2Name
+                );
+              window.LeaderboardClient.submitScore(p2Submission).catch(
+                (err) => {
+                  console.warn("[Leaderboard] Failed to submit P2 score:", err);
+                }
+              );
+            }
+
+            state.matchEnd.scoresSubmitted = true;
+          }
+
+          // Only respond to confirm button press (not ESC/back)
+          const pressed = state.input.keysPressed;
+          const confirmPressed = pressed.has("Enter") || pressed.has(" ");
+
+          // Check gamepad confirm button (A/X button - index 0)
+          const getGamepadButtonPressed = (playerIndex, buttonIndex) => {
+            const gamepads = navigator.getGamepads();
+            const physicalIndex = state.input.gamepadMapping?.[playerIndex];
+            if (physicalIndex === null || physicalIndex === undefined)
+              return false;
+            const gp = gamepads?.[physicalIndex];
+            if (!gp) return false;
+            const prev =
+              state.input.gamepadPrevButtons?.[playerIndex]?.[buttonIndex] ||
+              false;
+            const curr = gp.buttons[buttonIndex]?.pressed || false;
+            return curr && !prev;
+          };
+
+          const gamepadConfirm =
+            getGamepadButtonPressed(0, 0) || getGamepadButtonPressed(1, 0);
+
+          // Only proceed if confirm button is pressed (button is always selected)
+          if (confirmPressed || gamepadConfirm) {
+            // Close scoreboard and transition to complete phase
+            state.modal.isOpen = false;
+            if (state.matchEnd.phase === "showingResults") {
+              state.matchEnd.phase = "complete";
+            }
+          }
+        }
 
         InputHandler.clearInputEdges(state);
 
@@ -1211,7 +1303,8 @@
     const screenHeight = window.innerHeight;
 
     // Check if we should match device aspect ratio (mobile) or maintain fixed ratio (desktop)
-    const isMobile = state.performanceMode || window.matchMedia("(pointer: coarse)").matches;
+    const isMobile =
+      state.performanceMode || window.matchMedia("(pointer: coarse)").matches;
     const matchDeviceAspectRatio = isMobile; // Match device aspect on mobile, fixed ratio on desktop
 
     let newWidth, newHeight;
@@ -1226,7 +1319,9 @@
       // Update NATIVE dimensions to match device aspect ratio for rendering
       // This allows the game to use the full screen without letterboxing
       state.effectiveNativeWidth = C.NATIVE_WIDTH;
-      state.effectiveNativeHeight = C.NATIVE_HEIGHT * (C.NATIVE_WIDTH / C.NATIVE_HEIGHT) / effectiveAspectRatio;
+      state.effectiveNativeHeight =
+        (C.NATIVE_HEIGHT * (C.NATIVE_WIDTH / C.NATIVE_HEIGHT)) /
+        effectiveAspectRatio;
     } else {
       // Desktop: Maintain fixed 16:9 aspect ratio with letterboxing
       const ratio = C.NATIVE_WIDTH / C.NATIVE_HEIGHT;
@@ -1256,8 +1351,15 @@
     canvas.style.imageRendering = "crisp-edges";
 
     // Stelle sicher, dass Canvas WebGL-fähig ist
-    console.log("Canvas resized to:", newWidth, "x", newHeight,
-                `(aspect: ${effectiveAspectRatio.toFixed(2)}, ${matchDeviceAspectRatio ? 'device-matched' : 'fixed-ratio'})`);
+    console.log(
+      "Canvas resized to:",
+      newWidth,
+      "x",
+      newHeight,
+      `(aspect: ${effectiveAspectRatio.toFixed(2)}, ${
+        matchDeviceAspectRatio ? "device-matched" : "fixed-ratio"
+      })`
+    );
 
     // Store the viewport info for the renderer
     // Note: viewport.x and viewport.y are 0 since canvas is centered by CSS (#root with place-items: center)
@@ -1726,10 +1828,16 @@
     };
 
     if (navRight) {
-      state.selection.stageIndex = getNextAvailableStage(state.selection.stageIndex, 1);
+      state.selection.stageIndex = getNextAvailableStage(
+        state.selection.stageIndex,
+        1
+      );
     }
     if (navLeft) {
-      state.selection.stageIndex = getNextAvailableStage(state.selection.stageIndex, -1);
+      state.selection.stageIndex = getNextAvailableStage(
+        state.selection.stageIndex,
+        -1
+      );
     }
     if (navDown) {
       // Move down one row (5 columns per row), skip disabled stages
@@ -2207,6 +2315,8 @@
       state.matchEnd.screenGrayStartTime = 0;
       state.matchEnd.modalShowStartTime = 0;
       state.matchEnd.lastKnownAliveIndex = null;
+      state.matchEnd.scoresSubmitted = false; // Reset submission flag
+      state.matchEnd.scoreboardButtonSelected = true; // Reset button state
       console.log("🔄 Match end state reset for restart");
     }
 
@@ -2804,6 +2914,16 @@
     });
 
     if (startPressed) {
+      // Don't handle ESC/Start when scoreboard is showing
+      const isScoreboardShowing =
+        state.matchEnd?.isActive &&
+        state.matchEnd?.phase === "showingResults" &&
+        state.modal?.isOpen;
+
+      if (isScoreboardShowing) {
+        return; // Scoreboard handles its own input
+      }
+
       // Simulate ESC key press logic
       // Handle modal in PLAYING mode
       if (state.gameMode === "PLAYING") {
@@ -2845,6 +2965,13 @@
   // NEW: Modal input handling
   function handleModalInput(state) {
     if (!state.modal.isOpen && !state.modal.controlsModal.isOpen) return;
+
+    // Don't handle input when scoreboard is showing (it has its own handler)
+    const isScoreboardShowing =
+      state.matchEnd?.isActive &&
+      state.matchEnd?.phase === "showingResults" &&
+      state.modal?.isOpen;
+    if (isScoreboardShowing) return;
 
     const pressed = state.input.keysPressed;
     const kd = state.input.keysDown;

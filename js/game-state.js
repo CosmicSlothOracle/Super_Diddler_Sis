@@ -68,6 +68,27 @@ window.GameState = (() => {
       rawPrevButtons: [],
     },
     effects: [],
+    // NEW: Global Match Statistics for Scoreboard & Leaderboard
+    matchStats: [
+      {
+        danceAttempts: 0,
+        beatmatches: 0,
+        perfectBeats: 0,
+        damageDealt: 0,
+        airTimeTicks: 0,
+        beatAttacks: 0,
+        totalTicks: 0,
+      },
+      {
+        danceAttempts: 0,
+        beatmatches: 0,
+        perfectBeats: 0,
+        damageDealt: 0,
+        airTimeTicks: 0,
+        beatAttacks: 0,
+        totalTicks: 0,
+      },
+    ],
     stageAnimations: [], // NEW: Stage animations for bgLayer
     stageAnimationsFromHeatmapSpawned: false, // Prevent duplicate heatmap spawns
     spawnedStageAnimKeys: new Set(), // Track spawned anims by block+name
@@ -388,6 +409,10 @@ window.GameState = (() => {
       technicolorActive: false,
       gaterActive: false,
       lastKnownAliveIndex: null,
+      // Leaderboard submission tracking
+      scoresSubmitted: false, // Track if scores have been submitted to prevent duplicate submissions
+      // Scoreboard button state
+      scoreboardButtonSelected: true, // Button is selected by default
     },
   });
 
