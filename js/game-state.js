@@ -413,6 +413,8 @@ window.GameState = (() => {
       scoresSubmitted: false, // Track if scores have been submitted to prevent duplicate submissions
       // Scoreboard button state
       scoreboardButtonSelected: true, // Button is selected by default
+      // Scoreboard grace period
+      scoreboardOpenTime: 0, // Timestamp when scoreboard modal first opened (to ignore stale input)
     },
   });
 

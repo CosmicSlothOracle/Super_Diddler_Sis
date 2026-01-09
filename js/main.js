@@ -1065,34 +1065,45 @@
             state.matchEnd.scoresSubmitted = true;
           }
 
-          // Only respond to confirm button press (not ESC/back)
-          const pressed = state.input.keysPressed;
-          const confirmPressed = pressed.has("Enter") || pressed.has(" ");
+          // Ignore input for 0.2 seconds after modal first opens (grace period to prevent stale input)
+          const currentTime = state.lastTime || (performance.now() / 1000);
+          const scoreboardOpenTime = state.matchEnd.scoreboardOpenTime || 0;
+          const gracePeriod = 0.2; // 200ms grace period
+          const timeSinceOpen = currentTime - scoreboardOpenTime;
+          const isGracePeriod = timeSinceOpen < gracePeriod;
+          
+          if (!isGracePeriod) {
+            // Only respond to confirm button press (not ESC/back)
+            const pressed = state.input.keysPressed;
+            const confirmPressed = pressed.has("Enter") || pressed.has(" ");
 
-          // Check gamepad confirm button (A/X button - index 0)
-          const getGamepadButtonPressed = (playerIndex, buttonIndex) => {
-            const gamepads = navigator.getGamepads();
-            const physicalIndex = state.input.gamepadMapping?.[playerIndex];
-            if (physicalIndex === null || physicalIndex === undefined)
-              return false;
-            const gp = gamepads?.[physicalIndex];
-            if (!gp) return false;
-            const prev =
-              state.input.gamepadPrevButtons?.[playerIndex]?.[buttonIndex] ||
-              false;
-            const curr = gp.buttons[buttonIndex]?.pressed || false;
-            return curr && !prev;
-          };
+            // Check gamepad confirm button (A/X button - index 0)
+            const getGamepadButtonPressed = (playerIndex, buttonIndex) => {
+              const gamepads = navigator.getGamepads();
+              const physicalIndex = state.input.gamepadMapping?.[playerIndex];
+              if (physicalIndex === null || physicalIndex === undefined)
+                return false;
+              const gp = gamepads?.[physicalIndex];
+              if (!gp) return false;
+              const prev =
+                state.input.gamepadPrevButtons?.[playerIndex]?.[buttonIndex] ||
+                false;
+              const curr = gp.buttons[buttonIndex]?.pressed || false;
+              return curr && !prev;
+            };
 
-          const gamepadConfirm =
-            getGamepadButtonPressed(0, 0) || getGamepadButtonPressed(1, 0);
+            const gamepadConfirm =
+              getGamepadButtonPressed(0, 0) || getGamepadButtonPressed(1, 0);
 
-          // Only proceed if confirm button is pressed (button is always selected)
-          if (confirmPressed || gamepadConfirm) {
-            // Close scoreboard and transition to complete phase
-            state.modal.isOpen = false;
-            if (state.matchEnd.phase === "showingResults") {
-              state.matchEnd.phase = "complete";
+            // Only proceed if confirm button is pressed (button is always selected)
+            if (confirmPressed || gamepadConfirm) {
+              // Close scoreboard and transition to complete phase
+              state.modal.isOpen = false;
+              if (state.matchEnd.phase === "showingResults") {
+                state.matchEnd.phase = "complete";
+              }
+              // Clear the open time when closing
+              state.matchEnd.scoreboardOpenTime = 0;
             }
           }
         }
@@ -2317,6 +2328,7 @@
       state.matchEnd.lastKnownAliveIndex = null;
       state.matchEnd.scoresSubmitted = false; // Reset submission flag
       state.matchEnd.scoreboardButtonSelected = true; // Reset button state
+      state.matchEnd.scoreboardOpenTime = 0; // Reset grace period tracking
       console.log("🔄 Match end state reset for restart");
     }
 

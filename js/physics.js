@@ -10110,6 +10110,10 @@ window.Physics = (() => {
           if (modalProgress >= 1) {
             state.modal.isOpen = true;
             state.modal.selectedButton = 0; // Reset to first button
+            // Set grace period to ignore input for 0.2 seconds after modal opens
+            if (!me.scoreboardOpenTime) {
+              me.scoreboardOpenTime = currentTime;
+            }
           }
         }
 
