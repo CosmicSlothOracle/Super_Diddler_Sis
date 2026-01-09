@@ -80,6 +80,8 @@ exports.handler = async (event, context) => {
       airTimePercent,
     } = body;
 
+    console.log("[Leaderboard Submit] Request body:", body);
+
     // Validate required fields
     if (
       !playerName ||
@@ -157,6 +159,7 @@ exports.handler = async (event, context) => {
 
     if (error) {
       console.error("[Leaderboard Submit] Supabase error:", error);
+      console.error("[Leaderboard Submit] Failed entry:", leaderboardEntry);
       return {
         statusCode: 500,
         headers: {

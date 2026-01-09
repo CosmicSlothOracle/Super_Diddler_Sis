@@ -2320,8 +2320,7 @@
       console.log("🔄 Match end state reset for restart");
     }
 
-    // NEW: Reset modal state
-    state.modal.isOpen = false;
+    // NEW: Reset modal state (handled by specific modal logic)
     state.modal.selectedButton = 0;
 
     try {
