@@ -632,7 +632,7 @@
 
       const warmupTime = performance.now() - startTime;
       console.log(
-        `✅ Aggressive gameplay warmup complete in ${warmupTime.toFixed(2)}ms`
+        `✅ Aggressive gameplay warmup complete in ${ warmupTime.toFixed(2) }ms`
       );
 
       return warmupTime;
@@ -649,12 +649,10 @@
     }
 
     const t = ts * 0.001;
-    let dt = state.lastTime ? t - state.lastTime : 0;
+    let dt = state.lastTime ? Math.max(0, t - state.lastTime) : 0;
 
-    // Clamp delta spikes in first frames to prevent physics explosions
-    if (frameCount < FRAMES_TO_STABILIZE) {
-      dt = Math.min(dt, MAX_FRAME_DELTA);
-    }
+    // Clamp delta spikes to prevent physics explosions and stutter spirals
+    dt = Math.min(dt, MAX_FRAME_DELTA);
 
     frameCount++;
     state.lastTime = t;
@@ -834,13 +832,12 @@
         if (skipUpdates) {
           try {
             console.warn(
-              `[DEBUG] skipUpdates=true → reason=${skipReason}; hitstop=${(
+              `[DEBUG] skipUpdates=true → reason=${ skipReason }; hitstop=${ (
                 state.hitstop || 0
-              ).toFixed(2)}; tutorialPart=${
-                state.tutorial?.part
-              }; part2ModalVisible=${Boolean(
+              ).toFixed(2) }; tutorialPart=${ state.tutorial?.part
+              }; part2ModalVisible=${ Boolean(
                 state.tutorial?.part2?.modal?.visible
-              )}; modal.isOpen=${Boolean(state.modal?.isOpen)}`
+              ) }; modal.isOpen=${ Boolean(state.modal?.isOpen) }`
             );
           } catch (e) {
             // Swallow debug errors to avoid breaking the loop
@@ -1002,7 +999,7 @@
           state.matchEnd?.isActive &&
           state.matchEnd?.phase === "showingResults" &&
           state.modal?.isOpen;
-        
+
         if (isScoreboardShowing) {
           console.log("[SCOREBOARD] 🎨 Rendering scoreboard modal. isOpen:", state.modal.isOpen, "phase:", state.matchEnd.phase, "scoreboardOpenTime:", state.matchEnd.scoreboardOpenTime);
           UIComponents.renderMatchScoreboard(ctx, state);
@@ -1072,9 +1069,9 @@
           const gracePeriod = 0.2; // 200ms grace period
           const timeSinceOpen = currentTime - scoreboardOpenTime;
           const isGracePeriod = timeSinceOpen < gracePeriod;
-          
+
           console.log("[SCOREBOARD] 🔍 Input check - currentTime:", currentTime, "openTime:", scoreboardOpenTime, "timeSinceOpen:", timeSinceOpen.toFixed(3), "gracePeriod:", isGracePeriod, "isOpen:", state.modal.isOpen);
-          
+
           if (!isGracePeriod) {
             // Only respond to confirm button press (not ESC/back)
             const pressed = state.input.keysPressed;
@@ -1195,7 +1192,7 @@
     // NEW: Cooldown Display Helper
     function formatCooldown(cd) {
       if (!cd || cd <= 0) return '<span style="color:#00ff00;">✓</span>';
-      return `<span style="color:#ff4444;">${cd.toFixed(1)}s</span>`;
+      return `<span style="color:#ff4444;">${ cd.toFixed(1) }s</span>`;
     }
 
     function getCooldownDisplay(player, label) {
@@ -1203,15 +1200,15 @@
       const cds = player.cooldowns;
       return `
         <div style="margin-top:8px; font-size:10px; border-top:1px solid #444; padding-top:4px;">
-          <div style="font-weight:bold; color:#ffaa00;">${label}</div>
-          <div>R1: ${formatCooldown(cds.r1)} | R2: ${formatCooldown(
+          <div style="font-weight:bold; color:#ffaa00;">${ label }</div>
+          <div>R1: ${ formatCooldown(cds.r1) } | R2: ${ formatCooldown(
         cds.r2
-      )} | L1: ${formatCooldown(cds.l1)} | L2: ${formatCooldown(cds.l2)}</div>
-          <div>Roll: ${formatCooldown(cds.roll)} | Shield: ${formatCooldown(
+      ) } | L1: ${ formatCooldown(cds.l1) } | L2: ${ formatCooldown(cds.l2) }</div>
+          <div>Roll: ${ formatCooldown(cds.roll) } | Shield: ${ formatCooldown(
         cds.shield
-      )} | 2xJump: ${formatCooldown(cds.doubleJump)} | Ulti: ${formatCooldown(
+      ) } | 2xJump: ${ formatCooldown(cds.doubleJump) } | Ulti: ${ formatCooldown(
         cds.ultimate
-      )}</div>
+      ) }</div>
         </div>
       `;
     }
@@ -1241,7 +1238,7 @@
       const nextBeatIn = beatInterval - timeSinceLastBeat;
       const offsetDisplay =
         beatOffset !== 0
-          ? ` | Offset: ${beatOffset >= 0 ? "+" : ""}${beatOffset.toFixed(0)}ms`
+          ? ` | Offset: ${ beatOffset >= 0 ? "+" : "" }${ beatOffset.toFixed(0) }ms`
           : "";
 
       // NEW: Drift detection info
@@ -1251,7 +1248,7 @@
       const drift = rawMusicTime - expectedMusicTime;
       const driftDisplay =
         Math.abs(drift) > 10
-          ? ` | Drift: ${drift >= 0 ? "+" : ""}${drift.toFixed(0)}ms`
+          ? ` | Drift: ${ drift >= 0 ? "+" : "" }${ drift.toFixed(0) }ms`
           : "";
 
       // NEW: Beat alignment info
@@ -1261,19 +1258,18 @@
 
       return `
         <div style="margin-top:8px; font-size:9px; border-top:1px solid #333; padding-top:4px; color:#888;">
-          <div>🎵 BPM: ${state.currentBPM} | Beat every ${beatInterval.toFixed(
+          <div>🎵 BPM: ${ state.currentBPM } | Beat every ${ beatInterval.toFixed(
         0
-      )}ms | Window: ±${beatWindow.toFixed(
+      ) }ms | Window: ±${ beatWindow.toFixed(
         0
-      )}ms${offsetDisplay}${driftDisplay}</div>
-          <div>⏱️ Music: ${(musicTime / 1000).toFixed(
-            2
-          )}s | Since beat: ${timeSinceLastBeat.toFixed(
+      ) }ms${ offsetDisplay }${ driftDisplay }</div>
+          <div>⏱️ Music: ${ (musicTime / 1000).toFixed(
+        2
+      ) }s | Since beat: ${ timeSinceLastBeat.toFixed(
         0
-      )}ms | Next: ${nextBeatIn.toFixed(0)}ms</div>
-          <div>🎯 Beat: ${currentBeat} (${
-        beatInBar + 1
-      }/4) | ${beatStatus}</div>
+      ) }ms | Next: ${ nextBeatIn.toFixed(0) }ms</div>
+          <div>🎯 Beat: ${ currentBeat } (${ beatInBar + 1
+        }/4) | ${ beatStatus }</div>
         </div>
       `;
     }
@@ -1281,30 +1277,25 @@
     // Debug Modal nur anzeigen wenn showModal aktiviert ist
     if (state.debug.showModal) {
       overlay.innerHTML = `
-        <div>🎮 Gamepads: ${padCount} connected</div>
-        <div>P1: ${p1Pad !== null ? `Pad ${p1Pad}` : "Keyboard"}</div>
-        <div>P2: ${p2Pad !== null ? `Pad ${p2Pad}` : "Not connected"}</div>
-        <div style="margin-top:8px; font-size:12px; font-weight:bold; color:${beatColor};">${beatText}</div>
-        <div style="margin-top:4px; font-size:10px; color:${statusColor}; font-weight:bold;">${statusText}</div>
+        <div>🎮 Gamepads: ${ padCount } connected</div>
+        <div>P1: ${ p1Pad !== null ? `Pad ${ p1Pad }` : "Keyboard" }</div>
+        <div>P2: ${ p2Pad !== null ? `Pad ${ p2Pad }` : "Not connected" }</div>
+        <div style="margin-top:8px; font-size:12px; font-weight:bold; color:${ beatColor };">${ beatText }</div>
+        <div style="margin-top:4px; font-size:10px; color:${ statusColor }; font-weight:bold;">${ statusText }</div>
         <div style="margin-top:4px; font-size:10px;">Press H to toggle hitboxes | M for music | N for metronome | Alt+P to spawn NPC | P to toggle NPC | I for dev mode | B for beat align | V for beat sync debug | T for beat sync toggle | F for FPS multiplier | Q to hide debug</div>
-        ${
-          state.metronome.enabled
-            ? `<div style="margin-top:4px; font-size:10px; color:#ff0; background:rgba(255,255,0,${
-                state.metronome.visualPulse * 0.5
-              }); padding:2px 6px; border-radius:3px;">🎵 METRONOME: ${
-                state.currentBPM
-              } BPM</div>`
-            : ""
+        ${ state.metronome.enabled
+          ? `<div style="margin-top:4px; font-size:10px; color:#ff0; background:rgba(255,255,0,${ state.metronome.visualPulse * 0.5
+          }); padding:2px 6px; border-radius:3px;">🎵 METRONOME: ${ state.currentBPM
+          } BPM</div>`
+          : ""
         }
-        ${
-          window.NPCController?.isEnabled()
-            ? `<div style="margin-top:4px; font-size:10px; color:#0ff; background:rgba(0,255,255,0.2); padding:2px 6px; border-radius:3px;">🤖 NPC ACTIVE (P2)</div>`
-            : ""
+        ${ window.NPCController?.isEnabled()
+          ? `<div style="margin-top:4px; font-size:10px; color:#0ff; background:rgba(0,255,255,0.2); padding:2px 6px; border-radius:3px;">🤖 NPC ACTIVE (P2)</div>`
+          : ""
         }
-        ${
-          state.debug?.devMode
-            ? `<div style="margin-top:4px; font-size:10px; color:#f0f; background:rgba(255,0,255,0.3); padding:2px 6px; border-radius:3px;">🛠️ DEV MODE: Instant Ultimeter</div>`
-            : ""
+        ${ state.debug?.devMode
+          ? `<div style="margin-top:4px; font-size:10px; color:#f0f; background:rgba(255,0,255,0.3); padding:2px 6px; border-radius:3px;">🛠️ DEV MODE: Instant Ultimeter</div>`
+          : ""
         }
       `;
     } else {
@@ -1371,8 +1362,7 @@
       newWidth,
       "x",
       newHeight,
-      `(aspect: ${effectiveAspectRatio.toFixed(2)}, ${
-        matchDeviceAspectRatio ? "device-matched" : "fixed-ratio"
+      `(aspect: ${ effectiveAspectRatio.toFixed(2) }, ${ matchDeviceAspectRatio ? "device-matched" : "fixed-ratio"
       })`
     );
 
@@ -1427,9 +1417,9 @@
     const value = getGamepadAxis(gamepadIndex, axisIndex, deadzone);
     const isPressed = direction > 0 ? value > deadzone : value < -deadzone;
     const wasPressed =
-      gamepadState.prevStick[gamepadIndex][`${axisIndex}_${direction}`] ||
+      gamepadState.prevStick[gamepadIndex][`${ axisIndex }_${ direction }`] ||
       false;
-    gamepadState.prevStick[gamepadIndex][`${axisIndex}_${direction}`] =
+    gamepadState.prevStick[gamepadIndex][`${ axisIndex }_${ direction }`] =
       isPressed;
 
     return isPressed && !wasPressed; // Edge detection
@@ -1593,7 +1583,7 @@
         const charData = state.selection.characters[selectedChar];
         if (charData?.disabled) {
           console.warn(
-            `[Character Select] P1 attempted to pick disabled character '${selectedChar}'.`
+            `[Character Select] P1 attempted to pick disabled character '${ selectedChar }'.`
           );
         } else {
           state.selection.p1Locked = true;
@@ -1610,38 +1600,38 @@
       // Navigate right
       const p2Right = useP1Controller
         ? pressed.has("ArrowRight") ||
-          getGamepadDPad(0, "right") ||
-          getGamepadAxisPressed(0, 0, 1)
+        getGamepadDPad(0, "right") ||
+        getGamepadAxisPressed(0, 0, 1)
         : pressed.has("ArrowRight") ||
-          getGamepadDPad(1, "right") ||
-          getGamepadAxisPressed(1, 0, 1); // L-Stick right
+        getGamepadDPad(1, "right") ||
+        getGamepadAxisPressed(1, 0, 1); // L-Stick right
 
       // Navigate left
       const p2Left = useP1Controller
         ? pressed.has("ArrowLeft") ||
-          getGamepadDPad(0, "left") ||
-          getGamepadAxisPressed(0, 0, -1)
+        getGamepadDPad(0, "left") ||
+        getGamepadAxisPressed(0, 0, -1)
         : pressed.has("ArrowLeft") ||
-          getGamepadDPad(1, "left") ||
-          getGamepadAxisPressed(1, 0, -1); // L-Stick left
+        getGamepadDPad(1, "left") ||
+        getGamepadAxisPressed(1, 0, -1); // L-Stick left
 
       // Navigate down
       const p2Down = useP1Controller
         ? pressed.has("ArrowDown") ||
-          getGamepadDPad(0, "down") ||
-          getGamepadAxisPressed(0, 1, 1)
+        getGamepadDPad(0, "down") ||
+        getGamepadAxisPressed(0, 1, 1)
         : pressed.has("ArrowDown") ||
-          getGamepadDPad(1, "down") ||
-          getGamepadAxisPressed(1, 1, 1); // L-Stick down
+        getGamepadDPad(1, "down") ||
+        getGamepadAxisPressed(1, 1, 1); // L-Stick down
 
       // Navigate up
       const p2Up = useP1Controller
         ? pressed.has("ArrowUp") ||
-          getGamepadDPad(0, "up") ||
-          getGamepadAxisPressed(0, 1, -1)
+        getGamepadDPad(0, "up") ||
+        getGamepadAxisPressed(0, 1, -1)
         : pressed.has("ArrowUp") ||
-          getGamepadDPad(1, "up") ||
-          getGamepadAxisPressed(1, 1, -1); // L-Stick up
+        getGamepadDPad(1, "up") ||
+        getGamepadAxisPressed(1, 1, -1); // L-Stick up
 
       // Confirm - UNIFIED: B button
       const p2Confirm = useP1Controller
@@ -1677,7 +1667,7 @@
         const charData = state.selection.characters[selectedChar];
         if (charData?.disabled) {
           console.warn(
-            `[Character Select] P2 attempted to pick disabled character '${selectedChar}'.`
+            `[Character Select] P2 attempted to pick disabled character '${ selectedChar }'.`
           );
         } else {
           state.selection.p2Locked = true;
@@ -1888,7 +1878,7 @@
       const selectedStageData = state.selection.stages[selectedStageKey];
       if (selectedStageData?.disabled) {
         // Don't allow starting disabled stages
-        console.log(`Stage ${selectedStageKey} is disabled (Coming Soon)`);
+        console.log(`Stage ${ selectedStageKey } is disabled (Coming Soon)`);
         InputHandler.clearInputEdges(state);
         return;
       }
@@ -1956,13 +1946,13 @@
       state.gameTypeSelection.selectedType =
         state.gameTypeSelection.selectedType === "pvp" ? "story" : "pvp";
       console.log(
-        `Game type switched to: ${state.gameTypeSelection.selectedType}`
+        `Game type switched to: ${ state.gameTypeSelection.selectedType }`
       );
     }
 
     if (confirm) {
       const selectedType = state.gameTypeSelection.selectedType;
-      console.log(`Starting ${selectedType} mode`);
+      console.log(`Starting ${ selectedType } mode`);
 
       if (selectedType === "story") {
         // Tutorial mode: go directly to character select
@@ -2040,7 +2030,7 @@
         state.selection.stageIndex
       ];
       const stagePath = state.selection.stages[selectedStageKey].path;
-      console.log(`Starting game with mode: ${state.selectedGameMode}`);
+      console.log(`Starting game with mode: ${ state.selectedGameMode }`);
       // Analytics: Track stage selection
       if (window.AnalyticsClient) {
         window.AnalyticsClient.trackEvent("stage_selection", {
@@ -2091,7 +2081,7 @@
     ) {
       state.titleIntro.loopCount = currentLoop;
       console.log(
-        `Title intro loop ${currentLoop + 1}/${state.titleIntro.maxLoops}`
+        `Title intro loop ${ currentLoop + 1 }/${ state.titleIntro.maxLoops }`
       );
     }
 
@@ -2106,9 +2096,9 @@
     // For reverse loop, iterate backwards through frames
     const frameRange = isReverseLoop
       ? Array.from(
-          { length: state.titleIntro.totalFrames },
-          (_, i) => state.titleIntro.totalFrames - 1 - i
-        )
+        { length: state.titleIntro.totalFrames },
+        (_, i) => state.titleIntro.totalFrames - 1 - i
+      )
       : Array.from({ length: state.titleIntro.totalFrames }, (_, i) => i);
 
     for (let i = 0; i < frameRange.length; i++) {
@@ -2348,7 +2338,7 @@
       // This prevents stuttering on first sprite draw
       overlay.textContent = "Warming up graphics...";
       const warmupTime = await GameAssets.warmupSpritesheets(state);
-      console.log(`🔥 Sprite warmup completed in ${warmupTime.toFixed(2)}ms`);
+      console.log(`🔥 Sprite warmup completed in ${ warmupTime.toFixed(2) }ms`);
 
       // Performance: Initialize WebGL early (before first render frame)
       // This prevents WebGL init stutter on first frame
@@ -2393,8 +2383,8 @@
       const playerCount = state.isTrainingMode
         ? 1
         : state.isStoryMode && !state.selection.p2Locked
-        ? 1
-        : 2;
+          ? 1
+          : 2;
 
       // Ensure we have enough spawn points
       while (spawns.length < playerCount) {
@@ -2432,7 +2422,7 @@
         player.isMovable = true; // Ensure player can move
         player.respawnState = "none"; // Ensure not stuck in respawn state
         console.log(
-          `🔄 Player ${index + 1} (${player.charName}) reset for restart`
+          `🔄 Player ${ index + 1 } (${ player.charName }) reset for restart`
         );
       });
 
@@ -2447,7 +2437,7 @@
         state.currentBeatOffset = stageConfig.beatOffset || 0; // Offset in ms to sync beats
         state.currentStagePath = stagePath; // Store current stage path for restart functionality
         console.log(
-          `🎵 Stage config: ${stageConfig.name} - ${state.currentBPM} BPM - Music: ${state.currentStageMusic} - Offset: ${state.currentBeatOffset}ms`
+          `🎵 Stage config: ${ stageConfig.name } - ${ state.currentBPM } BPM - Music: ${ state.currentStageMusic } - Offset: ${ state.currentBeatOffset }ms`
         );
         if (
           typeof WebGLRenderer !== "undefined" &&
@@ -2496,7 +2486,7 @@
           state.stageFxAtlas.animations[stageAnimationName]
         ) {
           console.log(
-            `🎬 Spawning stage animation '${stageAnimationName}' for ${stagePath}`
+            `🎬 Spawning stage animation '${ stageAnimationName }' for ${ stagePath }`
           );
           Physics.spawnStageAnimation(
             state,
@@ -2514,7 +2504,7 @@
           );
         } else if (stageAnimationName) {
           console.warn(
-            `⚠️ Stage animation '${stageAnimationName}' not found in stageFxAtlas for ${stagePath}`
+            `⚠️ Stage animation '${ stageAnimationName }' not found in stageFxAtlas for ${ stagePath }`
           );
         }
       }
@@ -2539,7 +2529,7 @@
         state.currentBPM = 80;
         state.currentStageMusic = "PVP_STAGE_TUTORIAL";
         console.log(
-          `[Tutorial] BPM set to 80, Music: ${state.currentStageMusic}`
+          `[Tutorial] BPM set to 80, Music: ${ state.currentStageMusic }`
         );
 
         // Spawn tutorial dance spots (only DANCE_SPOT_D color)
@@ -2761,7 +2751,7 @@
           state.currentStagePath = stagePath;
         }
         console.log(
-          `[Tutorial Stage] UI visible initialized, currentStagePath: ${state.currentStagePath}`
+          `[Tutorial Stage] UI visible initialized, currentStagePath: ${ state.currentStagePath }`
         );
       }
 
@@ -2784,14 +2774,14 @@
 
       // NEW: Beatmatch-Timer startet JETZT (Stage-Start)
       state.stageStartTime = performance.now() / 1000; // Sekunden
-      console.log(`🎵 [DEBUG] Stage Start Time: ${state.stageStartTime}s`);
+      console.log(`🎵 [DEBUG] Stage Start Time: ${ state.stageStartTime }s`);
 
       // NEW: Song startet exakt auf Beat 5 (nach 4-Beat-Vorlauf)
       const beatInterval = 60000 / (state.currentBPM || 117); // ms per beat
       const songDelay = beatInterval * 4; // 4 Beats Vorlauf
 
       console.log(
-        `🎵 [DEBUG] Waiting ${songDelay}ms (4 beats @ ${state.currentBPM} BPM) before starting song: ${state.currentStageMusic}`
+        `🎵 [DEBUG] Waiting ${ songDelay }ms (4 beats @ ${ state.currentBPM } BPM) before starting song: ${ state.currentStageMusic }`
       );
 
       // NEW: Reset audio filters before starting new music
@@ -2817,7 +2807,7 @@
         });
 
         console.log(
-          `🎵 [DEBUG] Stage music playTrack called with delay=${songDelay}ms`
+          `🎵 [DEBUG] Stage music playTrack called with delay=${ songDelay }ms`
         );
       }
 
@@ -2838,9 +2828,9 @@
             state.currentBeatOffset =
               (state.currentBeatOffset || 0) + downbeatOffset;
             console.log(
-              `🎵 Auto-downbeat alignment: Applied ${downbeatOffset.toFixed(
+              `🎵 Auto-downbeat alignment: Applied ${ downbeatOffset.toFixed(
                 0
-              )}ms offset for better beat sync`
+              ) }ms offset for better beat sync`
             );
           }
         }
@@ -2863,13 +2853,11 @@
       // Debug: Log initial tutorial / hitstop state right after starting the stage
       try {
         console.log(
-          `[DEBUG] startGame complete → hitstop=${
-            state.hitstop || 0
-          }; tutorialActive=${Boolean(state.tutorial?.active)}; tutorialPart=${
-            state.tutorial?.part
-          }; part2ModalVisible=${Boolean(
+          `[DEBUG] startGame complete → hitstop=${ state.hitstop || 0
+          }; tutorialActive=${ Boolean(state.tutorial?.active) }; tutorialPart=${ state.tutorial?.part
+          }; part2ModalVisible=${ Boolean(
             state.tutorial?.part2?.modal?.visible
-          )}`
+          ) }`
         );
       } catch (e) {
         // ignore
@@ -3097,9 +3085,8 @@
           getGamepadButtonPressed(1, 0);
         if (confirmPlayer) {
           controls.focus = "actions";
-          controls.notice = `Editing bindings for Player ${
-            controls.playerIndex + 1
-          }`;
+          controls.notice = `Editing bindings for Player ${ controls.playerIndex + 1
+            }`;
           controls.noticeTimer = now;
         }
         return;
@@ -3158,8 +3145,8 @@
         };
         controls.notice =
           catalog.ACTIONS[selectedAction.id]?.kind === "axis"
-            ? `Move a stick for ${selectedAction.label}`
-            : `Press a button for ${selectedAction.label}`;
+            ? `Move a stick for ${ selectedAction.label }`
+            : `Press a button for ${ selectedAction.label }`;
         controls.noticeTimer = performance.now() * 0.001;
       } else if (clear) {
         window.InputHandler.clearBinding(
@@ -3383,7 +3370,7 @@
       p2.facing = -1; // Face left (towards P1)
       p2.isMovable = true;
       p2.respawnState = "none";
-      console.log(`🤖 Player 2 (${p2.charName}) respawned`);
+      console.log(`🤖 Player 2 (${ p2.charName }) respawned`);
       return;
     }
 
@@ -3394,9 +3381,9 @@
       state.spawnPoints.length >= 2
         ? state.spawnPoints[1]
         : {
-            x: canvas.width * 0.75,
-            y: canvas.height * 0.5,
-          };
+          x: canvas.width * 0.75,
+          y: canvas.height * 0.5,
+        };
 
     // Ensure spawn point exists
     if (state.spawnPoints.length < 2) {
@@ -3407,7 +3394,7 @@
     state.players.push(p2);
 
     console.log(
-      `🤖 NPC (Player 2) spawned: ${charName} at (${spawnPos.x}, ${spawnPos.y})`
+      `🤖 NPC (Player 2) spawned: ${ charName } at (${ spawnPos.x }, ${ spawnPos.y })`
     );
   };
 
@@ -3431,10 +3418,10 @@
         rawMusicTime > 0
           ? Math.max(0, rawMusicTime + beatOffset)
           : Math.max(
-              0,
-              (performance.now() / 1000 - (state.stageStartTime || 0)) * 1000 +
-                beatOffset
-            );
+            0,
+            (performance.now() / 1000 - (state.stageStartTime || 0)) * 1000 +
+            beatOffset
+          );
       const beatInterval = 60000 / state.currentBPM; // ms
       const timeSinceLastBeat = musicTime % beatInterval;
 
@@ -3442,11 +3429,11 @@
       syncOffset = beatInterval - timeSinceLastBeat;
 
       console.log(
-        `🎵 Sync calculation: musicTime=${musicTime.toFixed(
+        `🎵 Sync calculation: musicTime=${ musicTime.toFixed(
           0
-        )}ms, timeSinceBeat=${timeSinceLastBeat.toFixed(
+        ) }ms, timeSinceBeat=${ timeSinceLastBeat.toFixed(
           0
-        )}ms, nextBeatIn=${syncOffset.toFixed(0)}ms`
+        ) }ms, nextBeatIn=${ syncOffset.toFixed(0) }ms`
       );
     }
 
@@ -3457,7 +3444,7 @@
       Metronome.setVisualCallback(() => {
         state.metronome.visualPulse = 1.0; // Trigger visual pulse
       });
-      console.log(`🎵 Metronome enabled at ${state.currentBPM} BPM (synced)`);
+      console.log(`🎵 Metronome enabled at ${ state.currentBPM } BPM (synced)`);
     } else {
       console.log("🎵 Metronome disabled");
     }
@@ -3478,11 +3465,11 @@
     state.currentBeatOffset = currentOffset + downbeatOffset;
 
     console.log(
-      `🎵 Beat alignment: Old offset: ${currentOffset.toFixed(
+      `🎵 Beat alignment: Old offset: ${ currentOffset.toFixed(
         0
-      )}ms → Downbeat adjustment: ${downbeatOffset.toFixed(
+      ) }ms → Downbeat adjustment: ${ downbeatOffset.toFixed(
         0
-      )}ms → New offset: ${state.currentBeatOffset.toFixed(0)}ms`
+      ) }ms → New offset: ${ state.currentBeatOffset.toFixed(0) }ms`
     );
   };
 
@@ -3501,8 +3488,7 @@
     }
 
     console.log(
-      `🎬 Beat sync for all stage animations: ${
-        newState ? "ENABLED" : "DISABLED"
+      `🎬 Beat sync for all stage animations: ${ newState ? "ENABLED" : "DISABLED"
       }`
     );
   };
@@ -3519,7 +3505,7 @@
     }
 
     console.log(
-      `🎬 FPS multiplier for all stage animations set to: ${multiplier}x`
+      `🎬 FPS multiplier for all stage animations set to: ${ multiplier }x`
     );
   };
 
