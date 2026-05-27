@@ -1,132 +1,93 @@
+<div align="center">
+
 # Super Diddler Sis
 
-Epic fighting game with rhythm mechanics - A Smash Bros inspired 2D platformer with dance battle elements.
+**Superdiddle me timbers** — a Smash-style 2D platform fighter with rhythm, dance battles, and way too much personality.
 
-## About
+[![Play in browser](https://img.shields.io/badge/play-browser-00d4ff?style=for-the-badge)](https://github.com/CosmicSlothOracle/Super_Diddler_Sis#quick-start)
+[![License](https://img.shields.io/badge/license-ISC-purple?style=for-the-badge)](LICENSE)
+[![JavaScript](https://img.shields.io/badge/stack-HTML5%20·%20WebGL%20·%20Electron-f5a623?style=for-the-badge)](package.json)
 
-Super Diddler Sis is a fast-paced 2D fighting game that combines platform fighter mechanics with rhythm-based gameplay. Players battle on dynamic stages while syncing their moves to the beat of the music.
+<img src="docs/readme/brand.png" alt="Super Diddler Sis — play milch, it's milked" width="720">
 
-## Features
+</div>
 
-- **2D Platform Fighter**: Smash Bros-inspired combat with unique character abilities
-- **Rhythm Mechanics**: Sync attacks and movements to the beat for enhanced effects
-- **Multiple Characters**: Each with unique movesets, combos, and special abilities
-- **Dynamic Stages**: Interactive environments with animated backgrounds and stage hazards
-- **WebGL Rendering**: High-performance graphics with WebGL and Canvas2D support
-- **Cross-Platform**: Play in browser or as native Electron application
+<p align="center">
+  <img src="docs/readme/header.gif" alt="Late-night coding vibe — Dim Sum neon through the rain" width="100%">
+</p>
 
-## Tech Stack
+---
 
-- **Frontend**: HTML5, Canvas2D, WebGL
-- **Runtime**: Electron (for native builds) or Browser (for web deployment)
-- **Build Tools**: Webpack, Babel
-- **Audio**: Web Audio API with advanced effects and rhythm synchronization
+Knock opponents off the stage, chase the beat, and learn the movement tech — wall slides, aerial dashes, double jumps — on stages that swing from birch forests to rainy neon *Dim Sum* alleys.
 
-## Quick Start
+<table>
+<tr>
+<td width="50%">
 
-### Web Version (Recommended for Testing)
+**Fight** — platform-fighter damage %, stocks, and character-specific kits.
 
-The game is deployed and playable in your browser:
-- **Live Demo**: [Deploy to Netlify and add link here]
+**Move** — double jump, wall slide/jump, aerial dash (tutorial in-game).
 
-### Local Development
+**Feel the beat** — rhythm-synced attacks and dance-zone mechanics.
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/CosmicSlothOracle/Super_Diddler_Sis.git
-   cd Super_Diddler_Sis
-   ```
+</td>
+<td width="50%">
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+**Explore** — forests, pools, beaches, dojo banners, cyberpunk interiors.
 
-3. **Run in development mode**:
-   ```bash
-   npm run dev
-   ```
+**Roster** — eclectic cast (more fighters on the way).
 
-4. **Build for production**:
-   ```bash
-   npm run build:prod
-   ```
+**Ship anywhere** — browser via Netlify, or native with Electron.
 
-### Browser Testing (No Build Required)
+</td>
+</tr>
+</table>
 
-For quick browser testing without Electron:
+## Screenshots
+
+<p align="center">
+  <img src="docs/readme/overview.png" alt="Gameplay collage — forest stage, stage select, Dim Sum fight, movement tutorial" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/readme/forest-fight.png" alt="Forest stage combat" width="49%">
+  <img src="docs/readme/dim-sum-fight.png" alt="Dim Sum neon stage at night" width="49%">
+</p>
+
+<p align="center">
+  <img src="docs/readme/stage-select.png" alt="Stage select screen" width="49%">
+  <img src="docs/readme/roster.png" alt="Character select roster" width="49%">
+</p>
+
+## Quick start
+
 ```bash
-# Using Python
-python -m http.server 8000
-
-# Using Node.js serve
-npx serve .
-
-# Then open http://localhost:8000 in your browser
+git clone https://github.com/CosmicSlothOracle/Super_Diddler_Sis.git
+cd Super_Diddler_Sis
+npm install
+npm run dev          # Electron + dev tools
+# npm run dev:web    # Netlify dev server (browser)
+# npm run build:web  # production web build → dist/
 ```
 
-## Project Structure
+No build? From the repo root: `npx serve .` or `python -m http.server 8000`, then open `index.html` (add `?dev` for debug overlays).
 
-```
-Super_Diddler_Sis/
-├── assets/           # Game assets (characters, audio, effects, UI)
-├── data/             # Game data (characters.json, stages.json)
-├── js/               # Game logic and systems
-├── levels/           # Stage definitions and assets
-├── electron-main/    # Electron main process
-├── index.html        # Entry point
-└── netlify.toml      # Netlify deployment configuration
-```
+## Docs
 
-## Key Systems
+| Topic | Link |
+| --- | --- |
+| Architecture | [ARCHITECTURE_GUIDELINES.md](ARCHITECTURE_GUIDELINES.md) |
+| Deploy (Netlify) | [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) |
+| Web deployment notes | [WEB_DEPLOYMENT_ANALYSIS.md](WEB_DEPLOYMENT_ANALYSIS.md) |
 
-- **Attack System**: Modular attack catalog with combo support
-- **Physics Engine**: Custom 2D physics with collision detection
-- **Audio System**: Rhythm-synchronized music and sound effects
-- **Renderer**: WebGL and Canvas2D rendering pipeline
-- **Input Handler**: Keyboard and gamepad support with customizable bindings
+## Stack
 
-## Documentation
+HTML5 · Canvas2D · WebGL · Web Audio API · Webpack · Electron
 
-- [Architecture Guidelines](ARCHITECTURE_GUIDELINES.md)
-- [Attack System Guide](docs/ATTACK_SYSTEM_GUIDE.md)
-- [Web Deployment Analysis](WEB_DEPLOYMENT_ANALYSIS.md)
-- [Deployment Guide](DEPLOYMENT_GUIDE.md)
+---
 
-## Development
-
-### Dev Mode
-
-Enable dev mode for debugging:
-- **Electron**: Use `npm run dev` (automatically enables dev mode)
-- **Browser**: Add `?dev` to URL or set `localStorage.setItem('devMode', 'true')`
-
-### Building
-
-- **Development Build**: `npm run build:dev`
-- **Production Build**: `npm run build:prod` (includes Electron packaging)
-
-## Deployment
-
-The project is configured for deployment on Netlify. See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions.
-
-### Netlify Deployment
-
-1. Connect your GitHub repository to Netlify
-2. Configure build settings:
-   - Build command: (leave empty)
-   - Publish directory: `.` (root)
-3. Deploy automatically on every push to `main` branch
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-ISC
-
-## Links
-
-- **Repository**: https://github.com/CosmicSlothOracle/Super_Diddler_Sis
-- **Issues**: https://github.com/CosmicSlothOracle/Super_Diddler_Sis/issues
+<p align="center">
+  <sub>Built with love, pixels, and questionable amounts of milk.</sub><br>
+  <a href="https://github.com/CosmicSlothOracle/Super_Diddler_Sis/issues">Issues</a> ·
+  <a href="https://github.com/CosmicSlothOracle/Super_Diddler_Sis">Repository</a>
+</p>
